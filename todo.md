@@ -1,0 +1,25 @@
+# Project TODO
+
+- [x] Document permitted-source, robots.txt, terms-of-use, rate-limit, and provenance controls for collection.
+- [x] Define the database schema for earthquake records, raw/normalized values, collection outcomes, source status, model registry, predictions, and configuration.
+- [x] Create a source-adapter and collection-service architecture using downloadable public catalogs or expressly permitted public pages; do not use earthquake-data APIs.
+- [x] Define Google Sheets synchronization configuration, required worksheet tabs, headers, upsert logic, and provenance retention.
+- [x] Implement configurable coordinate-based Japan regional and prefecture classification.
+- [x] Implement leakage-safe, chronological feature and label-generation specifications for configurable targets.
+- [ ] Implement model evaluation, calibration, quality gates, version promotion, and transparent performance reporting.
+- [x] Build a responsive dashboard with current model-derived risk, event feed, regional risk/activity, model limitations, and source attribution.
+- [x] Build an interactive Japan regional map view with accessible risk states and activity summaries.
+- [x] Build operational views for source health, collection results, rejected records, schedule status, model registry, and metrics.
+- [ ] Add manual collection/retraining controls and configuration views with clear non-prediction safeguards.
+- [x] Create database migration, server procedures, and unit tests for core classification and risk-display logic.
+- [x] Validate the implementation with tests and desktop/mobile visual checks.
+- [x] Save a completed project checkpoint and deliver the project version.
+- [x] Keep the initial implementation on a no-added-cost path; defer the durable Python collector host and live Google Sheets authorization until the owner opts in.
+- [x] Ensure no model workflow forces, promises, or manipulates a 98% accuracy result; show real time-aware evaluation metrics and limitations instead.
+- [x] Resolve the Kyushu–Shikoku bounding-box overlap found by the coordinate-classification unit test.
+- [x] Add unit coverage for probability-to-risk display thresholds.
+- [ ] Expand historical features and chronological targets to the complete required set, with future-leakage regression coverage.
+- [ ] Add calibration reporting and a persisted candidate-versus-production model-promotion workflow with version retention.
+- [ ] Persist evaluation reports to the model registry and expose an operator-readable model report endpoint.
+- [ ] Add end-to-end model registry lifecycle coverage and broad feature/target regression tests.
+- [x] Correct the feature-pipeline regression assertion to respect the configured 24-hour forecast window.

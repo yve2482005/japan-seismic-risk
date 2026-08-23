@@ -1,0 +1,7 @@
+# No-Cost Implementation Boundary
+
+The deployed dashboard is fully usable as a **demonstration and governance interface**. It includes a responsive regional map, event/provenance layout, risk-band display, source operations state, model registry design, sheet headers, validation functions, and tests. Every displayed seismic event and probability is explicitly marked as a synthetic demo fixture; it is not live data and must not be used for protective decisions.
+
+The project does not spend money or activate background services. The Python collector is included as an operator-run scaffold, not as a running cloud process. It has no earthquake-data API client and refuses to fetch a source unless its compliance status is approved. Google Sheets synchronization is intentionally not activated because it requires the owner’s Google authorization.
+
+The 98% benchmark remains a **future evaluation target**, not a promised output. When a permitted, validated historical catalog is available, the included `collector/train_models.py` workflow evaluates Logistic Regression, Random Forest, and gradient boosting chronologically on unseen data and reports accuracy, precision, recall, F1, ROC-AUC, PR-AUC, Brier score, false-positive rate, false-negative rate, and the confusion matrix. The server-side quality gate also blocks a candidate whose recall, false-positive rate, or Brier score violates configured limits. A model must not be promoted solely because of accuracy.
