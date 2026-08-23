@@ -64,4 +64,4 @@
 - [x] Select and document the approved JMA or USGS public downloadable feed under the owner-approved robots-file exception.
 - [x] Request secure Google service-account authorization and configure spreadsheet creation/upsert without handling a Google password.
 - [ ] Activate and verify scheduled time-aware training, calibrated production promotion, and production-only risk probabilities after the 500-record and 90-day history gates are genuinely met.
-- [ ] Save a fresh project checkpoint after the verified Sheets metric dashboard and calibrated-promotion pipeline changes.
+- [x] Save a fresh project checkpoint after the verified Sheets metric dashboard and calibrated-promotion pipeline changes.
