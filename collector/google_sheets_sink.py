@@ -94,19 +94,25 @@ def upsert_raw_records(spreadsheet_id: str, records: Iterable[dict[str, Any]]) -
     current = service.spreadsheets().values().get(spreadsheetId=spreadsheet_id, range="RAW_EARTHQUAKES!A2:T").execute().get("values", [])
     index = {row[0]: (position + 2, int(float(row[19])) if len(row) > 19 and row[19] else -1) for position, row in enumerate(current) if row}
     appended = updated = unchanged = 0
+    append_rows: list[list[Any]] = []
+    update_data: list[dict[str, Any]] = []
     for record in records:
-        values = [[record.get(header, "") for header in RAW_HEADERS]]
+        values = [record.get(header, "") for header in RAW_HEADERS]
         event_id = str(record["event_id"])
         incoming_updated = int(float(record.get("source_updated_epoch_ms") or 0))
         if event_id in index and index[event_id][1] >= incoming_updated:
             unchanged += 1
         elif event_id in index:
             row_number = index[event_id][0]
-            service.spreadsheets().values().update(spreadsheetId=spreadsheet_id, range=f"RAW_EARTHQUAKES!A{row_number}:T{row_number}", valueInputOption="RAW", body={"values": values}).execute()
+            update_data.append({"range": f"RAW_EARTHQUAKES!A{row_number}:T{row_number}", "values": [values]})
             updated += 1
         else:
-            service.spreadsheets().values().append(spreadsheetId=spreadsheet_id, range="RAW_EARTHQUAKES!A:T", valueInputOption="RAW", insertDataOption="INSERT_ROWS", body={"values": values}).execute()
+            append_rows.append(values)
             appended += 1
+    if update_data:
+        service.spreadsheets().values().batchUpdate(spreadsheetId=spreadsheet_id, body={"valueInputOption": "RAW", "data": update_data}).execute()
+    if append_rows:
+        service.spreadsheets().values().append(spreadsheetId=spreadsheet_id, range="RAW_EARTHQUAKES!A:T", valueInputOption="RAW", insertDataOption="INSERT_ROWS", body={"values": append_rows}).execute()
     return {"appended": appended, "updated": updated, "unchanged": unchanged}
 
 
