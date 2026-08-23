@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+from base64 import b64decode
 from typing import Any, Iterable
 
 from google.oauth2.service_account import Credentials
@@ -28,11 +29,37 @@ TAB_HEADERS = {
 SCOPES = ("https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive.file")
 
 
+def service_account_info() -> dict[str, Any]:
+    """Read a service-account secret without ever returning or logging its raw value.
+
+    GitHub repository secrets can store either the raw JSON document or a base64
+    encoding of that document. Supporting both avoids fragile copy/paste quoting
+    while keeping the secret out of source control and workflow output.
+    """
+    raw = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
+    if not raw:
+        raise RuntimeError("GOOGLE_SERVICE_ACCOUNT_JSON is required before Sheets synchronization can be enabled.")
+    candidates = [raw]
+    try:
+        candidates.append(b64decode(raw, validate=True).decode("utf-8"))
+    except Exception:
+        pass
+    for candidate in candidates:
+        try:
+            parsed = json.loads(candidate)
+            if isinstance(parsed, str):
+                parsed = json.loads(parsed)
+            if isinstance(parsed, dict) and parsed.get("type") == "service_account" and parsed.get("client_email") and parsed.get("private_key"):
+                return parsed
+        except (json.JSONDecodeError, TypeError):
+            continue
+    raise RuntimeError("GOOGLE_SERVICE_ACCOUNT_JSON must contain raw service-account JSON or base64-encoded service-account JSON.")
+
+
 def sheet_service() -> Any:
-    credential_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
     credential_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
-    if credential_json:
-        credentials = Credentials.from_service_account_info(json.loads(credential_json), scopes=SCOPES)
+    if os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON"):
+        credentials = Credentials.from_service_account_info(service_account_info(), scopes=SCOPES)
     elif credential_path:
         credentials = Credentials.from_service_account_file(credential_path, scopes=SCOPES)
     else:
@@ -41,9 +68,8 @@ def sheet_service() -> Any:
 
 
 def drive_service() -> Any:
-    credential_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
     credential_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
-    credentials = Credentials.from_service_account_info(json.loads(credential_json), scopes=SCOPES) if credential_json else Credentials.from_service_account_file(credential_path, scopes=SCOPES)
+    credentials = Credentials.from_service_account_info(service_account_info(), scopes=SCOPES) if os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON") else Credentials.from_service_account_file(credential_path, scopes=SCOPES)
     return build("drive", "v3", credentials=credentials, cache_discovery=False)
 
 
