@@ -28,7 +28,7 @@
 - [x] Replace all demo-only data pathways with live, attributed earthquake records and truthful empty/loading states.
 - [x] Activate compliant source collection, validation, deduplication, Google Sheets upsert, and collection operational status.
 - [ ] Activate a scheduled, time-aware model-training and candidate-promotion workflow once sufficient validated historical records exist.
-- [ ] Validate the live pipeline with actual permitted records and updated dashboard provenance, then checkpoint and deliver.
+- [x] Validate the live pipeline with actual permitted records and updated dashboard provenance, then checkpoint and deliver.
 - [x] Select and document the approved JMA or USGS public downloadable feed under the owner-approved robots-file exception.
 - [x] Configure the local collector for conservative, attributed public-download collection without using an earthquake-data API.
 - [x] Request secure Google service-account authorization and configure spreadsheet creation/upsert without handling a Google password.
