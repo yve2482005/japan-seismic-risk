@@ -52,7 +52,7 @@ export async function getLiveSnapshot() {
   return {
     mode: "live" as const,
     generatedAt: new Date().toISOString(),
-    collection: { status: snapshot.events.length ? "active" as const : "awaiting_first_local_collection" as const, source: "U.S. Geological Survey (USGS), ANSS ComCat public CSV", sourceUrl: "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_month.csv", spreadsheetId: dataset.spreadsheetId, lastSuccess: snapshot.latestCollection, nextRun: "Local collector enforces a 60-minute minimum interval", recordsAccepted: snapshot.events.length, duplicatesRejected: null, invalidRejected: null },
+    collection: { status: snapshot.events.length ? "active" as const : "awaiting_first_scheduled_collection" as const, source: "U.S. Geological Survey (USGS), ANSS ComCat public CSV", sourceUrl: "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_month.csv", spreadsheetId: dataset.spreadsheetId, lastSuccess: snapshot.latestCollection, nextRun: "Public GitHub Actions workflow at minute 17 of each hour (UTC)", recordsAccepted: snapshot.events.length, duplicatesRejected: null, invalidRejected: null },
     model: { status: "awaiting_validated_history" as const, version: null, target: "M4+ in the next 24 hours", accuracy: null, precision: null, recall: null, prAuc: null, calibration: "Probabilities remain unavailable until a candidate model is trained and passes chronological evaluation." },
     events: snapshot.events,
     regions: snapshot.regions,
