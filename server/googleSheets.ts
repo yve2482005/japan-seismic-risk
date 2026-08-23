@@ -19,12 +19,20 @@ let accessTokenCache: { token: string; expiresAt: number } | null = null;
 let spreadsheetPromise: Promise<string> | null = null;
 
 function base64Url(value: string) { return Buffer.from(value).toString("base64url"); }
+export function parseServiceAccount(raw: string | undefined) {
+  if (!raw?.trim()) throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON is required for live Google Sheets synchronization.");
+  const candidates = [raw.trim()];
+  try { candidates.push(Buffer.from(raw.trim(), "base64").toString("utf8")); } catch { /* Raw JSON remains the only candidate. */ }
+  for (const candidate of candidates) {
+    try {
+      const value = JSON.parse(candidate) as ServiceAccount;
+      if (value.type === "service_account" && value.client_email && value.private_key && value.token_uri) return value;
+    } catch { /* Try the alternate representation without returning any secret content. */ }
+  }
+  throw new Error("Invalid Google service-account configuration.");
+}
 function account() {
-  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-  if (!raw) throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON is required for live Google Sheets synchronization.");
-  const value = JSON.parse(raw) as ServiceAccount;
-  if (value.type !== "service_account" || !value.client_email || !value.private_key || !value.token_uri) throw new Error("Invalid Google service-account configuration.");
-  return value;
+  return parseServiceAccount(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
 }
 function assertion(value: ServiceAccount) {
   const now = Math.floor(Date.now() / 1000);
