@@ -1,0 +1,24 @@
+name: Scheduler availability heartbeat
+
+on:
+  schedule:
+    - cron: "7 2 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  heartbeat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Record scheduler activity without touching secrets or data
+        run: |
+          date --utc --iso-8601=seconds > docs/scheduler-heartbeat.txt
+          git config user.name "seismic-scheduler[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/scheduler-heartbeat.txt
+          git diff --cached --quiet || git commit -m "chore: scheduler heartbeat"
+          git push

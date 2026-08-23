@@ -10,7 +10,7 @@
 - [x] Build a responsive dashboard with current model-derived risk, event feed, regional risk/activity, model limitations, and source attribution.
 - [x] Build an interactive Japan regional map view with accessible risk states and activity summaries.
 - [x] Build operational views for source health, collection results, rejected records, schedule status, model registry, and metrics.
-- [ ] Add manual collection/retraining controls and configuration views with clear non-prediction safeguards.
+- [x] Add manual collection/retraining controls and configuration views with clear non-prediction safeguards.
 - [x] Create database migration, server procedures, and unit tests for core classification and risk-display logic.
 - [x] Validate the implementation with tests and desktop/mobile visual checks.
 - [x] Save a completed project checkpoint and deliver the project version.
@@ -23,3 +23,35 @@
 - [ ] Persist evaluation reports to the model registry and expose an operator-readable model report endpoint.
 - [ ] Add end-to-end model registry lifecycle coverage and broad feature/target regression tests.
 - [x] Correct the feature-pipeline regression assertion to respect the configured 24-hour forecast window.
+- [ ] Verify and document a public catalog’s robots directives, terms, permitted collection method, and conservative rate before enabling live collection.
+- [ ] Choose a durable Python collector runtime and secure Google Sheets service-account or OAuth authorization path for the live workflow.
+- [ ] Replace all demo-only data pathways with live, attributed earthquake records and truthful empty/loading states.
+- [ ] Activate compliant source collection, validation, deduplication, Google Sheets upsert, and collection operational status.
+- [ ] Activate a scheduled, time-aware model-training and candidate-promotion workflow once sufficient validated historical records exist.
+- [ ] Validate the live pipeline with actual permitted records and updated dashboard provenance, then checkpoint and deliver.
+- [ ] Select and document the approved JMA or USGS public downloadable feed under the owner-approved robots-file exception.
+- [ ] Configure the local collector for conservative, attributed public-download collection without using an earthquake-data API.
+- [ ] Request secure Google service-account authorization and configure spreadsheet creation/upsert without handling a Google password.
+- [x] Resolve the Google Sheets API authorization error encountered during automated spreadsheet creation.
+- [x] Resolve the service-account Google Drive ownership restriction by linking a user-owned spreadsheet or approved domain-wide delegation path.
+- [ ] Verify a genuinely free scheduled Python execution platform and document its current limits before activation.
+- [ ] Package the collector for the approved free scheduler with secrets held only in that platform’s encrypted configuration.
+- [ ] Automate free scheduled collection, Sheets synchronization, feature generation, evaluation, retraining gates, and live dashboard refresh.
+- [ ] Package the live collector as a public GitHub Actions hourly workflow with a non-top-of-hour schedule and no committed credentials.
+- [ ] Add a GitHub Actions training workflow that runs only after the live dataset passes documented quality gates.
+- [ ] Document the exact GitHub repository-secret names and public-repository limitations for the user’s $0 deployment.
+- [x] Verify a genuinely free scheduled Python execution platform and document its current limits before activation.
+- [x] Package the live collector as a public GitHub Actions hourly workflow with a non-top-of-hour schedule and no committed credentials.
+- [x] Add a GitHub Actions training workflow that runs only after the live dataset passes documented quality gates.
+- [x] Document the exact GitHub repository-secret names and public-repository limitations for the user’s $0 deployment.
+- [x] Add a public-repository activity heartbeat so GitHub does not disable the scheduled workflows after inactivity.
+- [x] Ensure scheduled feature materialization and multi-target training defer safely on missing values or insufficient class diversity.
+- [x] Fix the Python runner module imports so the scheduled code can be tested as a package and executed as a script.
+- [x] Correct the package-qualified mock target in the GitHub Actions runner safeguard test.
+- [x] Replace remaining dashboard local-computer instructions with the approved public GitHub Actions execution path.
+- [ ] Verify the user-visible project export controls and correct the deployment guidance for the current Manus interface.
+- [ ] Identify a zero-cost, no-personal-computer scheduler alternative if GitHub export is not available in the current interface.
+- [ ] Inspect direct Manus-to-GitHub availability for this project and export the complete secret-safe repository if available.
+- [ ] Remove generated Python cache artifacts from the tracked public export and complete a clean secret audit before GitHub push.
+- [x] Select and document the approved JMA or USGS public downloadable feed under the owner-approved robots-file exception.
+- [x] Request secure Google service-account authorization and configure spreadsheet creation/upsert without handling a Google password.

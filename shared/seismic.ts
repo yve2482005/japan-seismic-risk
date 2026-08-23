@@ -27,9 +27,9 @@ export type SeismicEvent = {
 
 export type RegionActivity = {
   region: JapanRegion;
-  probabilityM4_24h: number;
-  probabilityM5_7d: number;
-  risk: RiskLevel;
+  probabilityM4_24h: number | null;
+  probabilityM5_7d: number | null;
+  risk: RiskLevel | "UNAVAILABLE";
   events24h: number;
   events7d: number;
   maxMagnitude7d: number | null;
