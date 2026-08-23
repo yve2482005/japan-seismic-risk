@@ -97,6 +97,38 @@ def chronological_slices(n_rows: int) -> tuple[slice, slice, slice]:
     return slice(0, train_end), slice(train_end, valid_end), slice(valid_end, n_rows)
 
 
+def candidate_models() -> dict[str, Pipeline]:
+    return {
+        "logistic_regression": Pipeline([("imputer", SimpleImputer(strategy="median")), ("scale", StandardScaler()), ("model", LogisticRegression(max_iter=2000, class_weight="balanced"))]),
+        "random_forest": Pipeline([("imputer", SimpleImputer(strategy="median")), ("model", RandomForestClassifier(n_estimators=300, class_weight="balanced", random_state=42))]),
+        "gradient_boosting": Pipeline([("imputer", SimpleImputer(strategy="median")), ("model", HistGradientBoostingClassifier(random_state=42))]),
+    }
+
+
+def fit_candidate_model(records: list[dict[str, Any]], target: TargetConfig, algorithm: str) -> Pipeline:
+    """Fit an evaluable candidate using only the chronological training segment."""
+    features, labels = build_dataset(records, target)
+    train_slice, _, _ = chronological_slices(len(labels))
+    if len(np.unique(labels[train_slice])) < 2:
+        raise ValueError("Insufficient chronological, class-diverse data for production scoring.")
+    model = candidate_models()[algorithm]
+    model.fit(features[train_slice], labels[train_slice])
+    return model
+
+
+def feature_vector_for_region(records: list[dict[str, Any]], region: str, as_of: datetime) -> np.ndarray | None:
+    """Derive a regional scoring feature vector without creating an earthquake record or label."""
+    regional = [record for record in records if record.get("region") == region]
+    if not regional:
+        return None
+    reference = max(regional, key=lambda record: parse_time(record["origin_time_utc"]))
+    last_time = parse_time(reference["origin_time_utc"])
+    anchor_time = max(as_of, last_time + timedelta(seconds=1))
+    anchor = {"event_id": f"score-anchor-{region}", "origin_time_utc": anchor_time.isoformat(), "latitude": reference["latitude"], "longitude": reference["longitude"], "depth_km": None, "magnitude": None, "region": region}
+    features, _ = build_dataset([*records, anchor], TargetConfig())
+    return features[-1]
+
+
 def metric_report(labels: np.ndarray, probabilities: np.ndarray) -> dict[str, Any]:
     predictions = probabilities >= 0.5
     tn, fp, fn, tp = confusion_matrix(labels, predictions, labels=[0, 1]).ravel()
@@ -132,10 +164,7 @@ def train(records_path: Path, output_path: Path, target: TargetConfig = TargetCo
     train_slice, validation_slice, test_slice = chronological_slices(len(labels))
     if len(labels[test_slice]) < 2 or len(np.unique(labels[train_slice])) < 2:
         raise ValueError("Insufficient chronological, class-diverse data for an honest model evaluation.")
-    baseline = Pipeline([("imputer", SimpleImputer(strategy="median")), ("scale", StandardScaler()), ("model", LogisticRegression(max_iter=2000, class_weight="balanced"))])
-    forest = Pipeline([("imputer", SimpleImputer(strategy="median")), ("model", RandomForestClassifier(n_estimators=300, class_weight="balanced", random_state=42))])
-    gradient = Pipeline([("imputer", SimpleImputer(strategy="median")), ("model", HistGradientBoostingClassifier(random_state=42))])
-    candidates = {"logistic_regression": baseline, "random_forest": forest, "gradient_boosting": gradient}
+    candidates = candidate_models()
     trained: dict[str, dict[str, Any]] = {}
     for name, model in candidates.items():
         model.fit(features[train_slice], labels[train_slice])

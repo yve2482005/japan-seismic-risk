@@ -20,17 +20,18 @@ import numpy as np
 try:
     from .google_sheets_sink import append_derived_records, append_system_log, create_or_prepare_spreadsheet, read_tab_records, replace_derived_tab, upsert_raw_records
     from .live_usgs_pipeline import USGS_CSV_URL, download_csv, normalize_usgs_row
-    from .train_models import FEATURE_NAMES, STANDARD_TARGETS, build_dataset, parse_time, train
+    from .train_models import FEATURE_NAMES, STANDARD_TARGETS, build_dataset, feature_vector_for_region, fit_candidate_model, parse_time, train
 except ImportError:
     from google_sheets_sink import append_derived_records, append_system_log, create_or_prepare_spreadsheet, read_tab_records, replace_derived_tab, upsert_raw_records
     from live_usgs_pipeline import USGS_CSV_URL, download_csv, normalize_usgs_row
-    from train_models import FEATURE_NAMES, STANDARD_TARGETS, build_dataset, parse_time, train
+    from train_models import FEATURE_NAMES, STANDARD_TARGETS, build_dataset, feature_vector_for_region, fit_candidate_model, parse_time, train
 
 MIN_TRAINING_RECORDS = 500
 MIN_HISTORY_DAYS = 90
 MIN_POSITIVE_LABELS = 12
 MAX_EXPECTED_CALIBRATION_ERROR = 0.20
 MAX_BRIER_SCORE = 0.25
+JAPAN_REGIONS = ("Hokkaido", "Tohoku", "Kanto", "Chubu", "Kansai", "Chugoku", "Shikoku", "Kyushu", "Okinawa")
 
 
 def require_environment(name: str) -> str:
@@ -175,6 +176,39 @@ def promote_rows(candidates: list[dict[str, Any]], existing_rows: list[dict[str,
     return retired, promoted
 
 
+def risk_level(probability: float) -> str:
+    percentage = probability * 100
+    if percentage >= 30:
+        return "HIGH"
+    if percentage >= 15:
+        return "ELEVATED"
+    if percentage >= 5:
+        return "MODERATE"
+    return "LOW"
+
+
+def production_prediction_rows(production_rows: list[dict[str, Any]], records: list[dict[str, Any]], generated_at: str) -> list[dict[str, Any]]:
+    """Score only models promoted in this run, preserving Sheet rows as the durable public output."""
+    as_of = parse_time(generated_at)
+    target_configs = {f"M{target.magnitude_threshold:g}_NEXT_{target.horizon_hours}H": target for target in STANDARD_TARGETS}
+    rows: list[dict[str, Any]] = []
+    for report in production_rows:
+        target = target_configs.get(report["target_definition"])
+        if target is None:
+            continue
+        try:
+            model = fit_candidate_model(records, target, report["algorithm"])
+        except ValueError:
+            continue
+        for region in JAPAN_REGIONS:
+            vector = feature_vector_for_region(records, region, as_of)
+            if vector is None:
+                continue
+            probability = float(model.predict_proba([vector])[0][1])
+            rows.append({"prediction_id": f"{report['model_version']}-{region}-{report['target_definition']}-{generated_at}", "model_version": report["model_version"], "region": region, "target_definition": report["target_definition"], "probability": probability, "risk_level": risk_level(probability), "generated_at": generated_at})
+    return rows
+
+
 def train_if_ready(spreadsheet_id: str, records: list[dict[str, Any]]) -> dict[str, Any]:
     passed, gate = quality_gate(records)
     if not passed:
@@ -204,7 +238,10 @@ def train_if_ready(spreadsheet_id: str, records: list[dict[str, Any]]) -> dict[s
     promoted_at = datetime.now(timezone.utc).isoformat()
     retired_rows, promoted = promote_rows(rows, existing_rows, promoted_at)
     append_derived_records(spreadsheet_id, "MODEL_METRICS", [*rows, *retired_rows])
-    result = {"status": "production_models_promoted" if promoted else "candidate_reports_generated", "reports": len(rows), "promoted_models": promoted, "deferred_targets": deferred_targets, "promotion_thresholds": {"max_brier_score": MAX_BRIER_SCORE, "max_expected_calibration_error": MAX_EXPECTED_CALIBRATION_ERROR}, **gate}
+    prediction_rows = production_prediction_rows([row for row in rows if row["status"] == "production"], records, promoted_at)
+    if prediction_rows:
+        append_derived_records(spreadsheet_id, "PREDICTIONS", prediction_rows)
+    result = {"status": "production_models_promoted" if promoted else "candidate_reports_generated", "reports": len(rows), "promoted_models": promoted, "production_predictions": len(prediction_rows), "deferred_targets": deferred_targets, "promotion_thresholds": {"max_brier_score": MAX_BRIER_SCORE, "max_expected_calibration_error": MAX_EXPECTED_CALIBRATION_ERROR}, **gate}
     append_system_log(spreadsheet_id, "training", "info", "Chronological candidate reports evaluated for promotion", result)
     return result
 
