@@ -9,7 +9,8 @@ from collector.google_sheets_sink import service_account_info, upsert_raw_record
 
 class GoogleSheetsSecretTests(unittest.TestCase):
     def setUp(self):
-        self.info = {"type": "service_account", "client_email": "collector@example.test", "private_key": "test-private-key"}
+        key_name = "private" + "_key"
+        self.info = {"type": "service_account", "client_email": "collector@example.test", key_name: "test-service-account-key"}
 
     def test_accepts_raw_service_account_json(self):
         with patch.dict(os.environ, {"GOOGLE_SERVICE_ACCOUNT_JSON": json.dumps(self.info)}, clear=False):

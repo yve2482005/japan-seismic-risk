@@ -49,13 +49,13 @@
 - [x] Fix the Python runner module imports so the scheduled code can be tested as a package and executed as a script.
 - [x] Correct the package-qualified mock target in the GitHub Actions runner safeguard test.
 - [x] Replace remaining dashboard local-computer instructions with the approved public GitHub Actions execution path.
-- [ ] Verify the user-visible project export controls and correct the deployment guidance for the current Manus interface.
+- [x] Verify the user-visible project export controls and correct the deployment guidance for the current Manus interface.
 - [x] Identify a zero-cost, no-personal-computer scheduler alternative if GitHub export is not available in the current interface.
 - [x] Inspect direct Manus-to-GitHub availability for this project and export the complete secret-safe repository if available.
 - [x] Remove generated Python cache artifacts from the tracked public export and complete a clean secret audit before GitHub push.
 - [x] Add the two encrypted GitHub repository secrets and trigger the first real USGS collection workflow.
-- [x] Read real model metrics and prediction outputs from Google Sheets into the live dashboard once quality gates allow a candidate model.
-- [x] Add a quality-gated production-promotion decision that retains prior model versions and only exposes calibrated probabilities after promotion.
+- [ ] Verify real model metrics and production-only prediction outputs from Google Sheets in the live dashboard after a genuine model passes every quality gate.
+- [ ] Validate the quality-gated production-promotion decision against a genuine candidate run, including retained prior versions and calibration thresholds.
 - [x] Resolve the GitHub Actions service-account secret format failure without revealing credential contents.
 - [x] Diagnose and correct the live USGS validation rule rejecting every Japan-envelope candidate while preserving source provenance and quality controls.
 - [x] Batch Google Sheets record upserts so the live first import stays within the documented per-minute write quota.
@@ -63,3 +63,5 @@
 - [x] Replace remaining local-collector status metadata in the live snapshot API with GitHub Actions scheduling details.
 - [x] Select and document the approved JMA or USGS public downloadable feed under the owner-approved robots-file exception.
 - [x] Request secure Google service-account authorization and configure spreadsheet creation/upsert without handling a Google password.
+- [ ] Activate and verify scheduled time-aware training, calibrated production promotion, and production-only risk probabilities after the 500-record and 90-day history gates are genuinely met.
+- [ ] Save a fresh project checkpoint after the verified Sheets metric dashboard and calibrated-promotion pipeline changes.
