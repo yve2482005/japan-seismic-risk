@@ -114,6 +114,67 @@ def select_production_candidate(rows: list[dict[str, Any]]) -> int | None:
     return max(eligible, key=lambda item: item[1])[0] if eligible else None
 
 
+def effective_model_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Resolve append-only Sheet history to the latest status for each model version."""
+    effective: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        version = row.get("model_version")
+        if not version:
+            continue
+        current = effective.get(version)
+        if current is None or row.get("trained_at", "") >= current.get("trained_at", ""):
+            effective[version] = row
+    return list(effective.values())
+
+
+def candidate_outperforms(candidate: dict[str, Any], production: dict[str, Any] | None) -> bool:
+    """Require an eligible candidate to match or improve all retained production safeguards."""
+    if production is None:
+        return True
+    candidate_metrics = json.loads(candidate["metrics_json"])
+    production_metrics = json.loads(production["metrics_json"])
+    candidate_calibration = candidate_metrics.get("calibration", {})
+    production_calibration = production_metrics.get("calibration", {})
+    comparisons = (
+        ("pr_auc", True),
+        ("recall", True),
+        ("false_positive_rate", False),
+        ("brier_score", False),
+    )
+    for field, higher_is_better in comparisons:
+        candidate_value, production_value = candidate_metrics.get(field), production_metrics.get(field)
+        if not isinstance(candidate_value, (int, float)) or not isinstance(production_value, (int, float)):
+            return False
+        if (higher_is_better and candidate_value < production_value) or (not higher_is_better and candidate_value > production_value):
+            return False
+    candidate_ece = candidate_calibration.get("expected_calibration_error")
+    production_ece = production_calibration.get("expected_calibration_error")
+    return isinstance(candidate_ece, (int, float)) and isinstance(production_ece, (int, float)) and candidate_ece <= production_ece
+
+
+def promote_rows(candidates: list[dict[str, Any]], existing_rows: list[dict[str, Any]], promoted_at: str) -> tuple[list[dict[str, Any]], int]:
+    """Promote only better calibrated candidates and append a status transition for any replaced production model."""
+    retired: list[dict[str, Any]] = []
+    effective_existing = effective_model_rows(existing_rows)
+    by_target: dict[str, list[dict[str, Any]]] = {}
+    for row in candidates:
+        by_target.setdefault(row["target_definition"], []).append(row)
+    promoted = 0
+    for target, target_rows in by_target.items():
+        selected_index = select_production_candidate(target_rows)
+        if selected_index is None:
+            continue
+        production = next((row for row in effective_existing if row.get("target_definition") == target and row.get("status") == "production"), None)
+        candidate = target_rows[selected_index]
+        if not candidate_outperforms(candidate, production):
+            continue
+        candidate["status"] = "production"
+        promoted += 1
+        if production:
+            retired.append({**production, "status": "retired", "trained_at": promoted_at})
+    return retired, promoted
+
+
 def train_if_ready(spreadsheet_id: str, records: list[dict[str, Any]]) -> dict[str, Any]:
     passed, gate = quality_gate(records)
     if not passed:
@@ -139,16 +200,10 @@ def train_if_ready(spreadsheet_id: str, records: list[dict[str, Any]]) -> dict[s
         result = {"status": "deferred_class_diversity", "deferred_targets": deferred_targets, **gate}
         append_system_log(spreadsheet_id, "training", "info", "Training deferred: no target had sufficient chronological class diversity", result)
         return result
-    promoted = 0
-    by_target: dict[str, list[dict[str, Any]]] = {}
-    for row in rows:
-        by_target.setdefault(row["target_definition"], []).append(row)
-    for target_rows in by_target.values():
-        selected_index = select_production_candidate(target_rows)
-        if selected_index is not None:
-            target_rows[selected_index]["status"] = "production"
-            promoted += 1
-    append_derived_records(spreadsheet_id, "MODEL_METRICS", rows)
+    existing_rows = read_tab_records(spreadsheet_id, "MODEL_METRICS")
+    promoted_at = datetime.now(timezone.utc).isoformat()
+    retired_rows, promoted = promote_rows(rows, existing_rows, promoted_at)
+    append_derived_records(spreadsheet_id, "MODEL_METRICS", [*rows, *retired_rows])
     result = {"status": "production_models_promoted" if promoted else "candidate_reports_generated", "reports": len(rows), "promoted_models": promoted, "deferred_targets": deferred_targets, "promotion_thresholds": {"max_brier_score": MAX_BRIER_SCORE, "max_expected_calibration_error": MAX_EXPECTED_CALIBRATION_ERROR}, **gate}
     append_system_log(spreadsheet_id, "training", "info", "Chronological candidate reports evaluated for promotion", result)
     return result

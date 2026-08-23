@@ -62,8 +62,13 @@ export function buildLiveSnapshot(rows: LiveRow[], now = new Date(), predictionR
 
 export async function getLiveSnapshot() {
   const [dataset, metricDataset, predictionDataset] = await Promise.all([readRawEarthquakeRows(), readSheetRows("MODEL_METRICS"), readSheetRows("PREDICTIONS")]);
-  const latestMetric = [...metricDataset.rows].sort((left, right) => Date.parse(right.trained_at ?? "") - Date.parse(left.trained_at ?? ""))[0];
-  const productionMetric = [...metricDataset.rows].filter(row => row.status === "production").sort((left, right) => Date.parse(right.trained_at ?? "") - Date.parse(left.trained_at ?? ""))[0];
+  const effectiveMetrics = Object.values(metricDataset.rows.reduce<Record<string, LiveRow>>((current, row) => {
+    const existing = current[row.model_version];
+    if (row.model_version && (!existing || Date.parse(row.trained_at ?? "") >= Date.parse(existing.trained_at ?? ""))) current[row.model_version] = row;
+    return current;
+  }, {}));
+  const latestMetric = [...effectiveMetrics].sort((left, right) => Date.parse(right.trained_at ?? "") - Date.parse(left.trained_at ?? ""))[0];
+  const productionMetric = effectiveMetrics.filter(row => row.status === "production").sort((left, right) => Date.parse(right.trained_at ?? "") - Date.parse(left.trained_at ?? ""))[0];
   const snapshot = buildLiveSnapshot(dataset.rows, new Date(), predictionDataset.rows, productionMetric?.model_version ?? null);
   let metricReport: Record<string, unknown> | null = null;
   try { metricReport = latestMetric?.metrics_json ? JSON.parse(latestMetric.metrics_json) as Record<string, unknown> : null; } catch { metricReport = null; }

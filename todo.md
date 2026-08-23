@@ -66,3 +66,4 @@
 - [ ] Activate and verify scheduled time-aware training, calibrated production promotion, and production-only risk probabilities after the 500-record and 90-day history gates are genuinely met.
 - [x] Save a fresh project checkpoint after the verified Sheets metric dashboard and calibrated-promotion pipeline changes.
 - [x] Align server-side Google Sheets credential parsing with the Actions collector’s raw-or-base64 secret handling.
+- [x] Compare future candidate models with effective production metrics, retain status-transition history, and preserve a production version unless all safeguards improve.
