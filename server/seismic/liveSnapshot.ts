@@ -1,4 +1,4 @@
-import { readRawEarthquakeRows } from "../googleSheets";
+import { readRawEarthquakeRows, readSheetRows } from "../googleSheets";
 import { JAPAN_REGIONS, type JapanRegion, type RegionActivity, type SeismicEvent } from "@shared/seismic";
 
 const mapPositions: Record<JapanRegion, [number, number]> = {
@@ -47,13 +47,17 @@ export function buildLiveSnapshot(rows: LiveRow[], now = new Date()) {
 }
 
 export async function getLiveSnapshot() {
-  const dataset = await readRawEarthquakeRows();
+  const [dataset, metricDataset] = await Promise.all([readRawEarthquakeRows(), readSheetRows("MODEL_METRICS")]);
   const snapshot = buildLiveSnapshot(dataset.rows);
+  const latestMetric = [...metricDataset.rows].sort((left, right) => Date.parse(right.trained_at ?? "") - Date.parse(left.trained_at ?? ""))[0];
+  let metricReport: Record<string, unknown> | null = null;
+  try { metricReport = latestMetric?.metrics_json ? JSON.parse(latestMetric.metrics_json) as Record<string, unknown> : null; } catch { metricReport = null; }
+  const numberMetric = (key: string) => typeof metricReport?.[key] === "number" ? metricReport[key] as number : null;
   return {
     mode: "live" as const,
     generatedAt: new Date().toISOString(),
     collection: { status: snapshot.events.length ? "active" as const : "awaiting_first_scheduled_collection" as const, source: "U.S. Geological Survey (USGS), ANSS ComCat public CSV", sourceUrl: "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_month.csv", spreadsheetId: dataset.spreadsheetId, lastSuccess: snapshot.latestCollection, nextRun: "Public GitHub Actions workflow at minute 17 of each hour (UTC)", recordsAccepted: snapshot.events.length, duplicatesRejected: null, invalidRejected: null },
-    model: { status: "awaiting_validated_history" as const, version: null, target: "M4+ in the next 24 hours", accuracy: null, precision: null, recall: null, prAuc: null, calibration: "Probabilities remain unavailable until a candidate model is trained and passes chronological evaluation." },
+    model: latestMetric ? { status: latestMetric.status || "candidate", version: latestMetric.model_version || null, target: latestMetric.target_definition || "M4+ in the next 24 hours", accuracy: numberMetric("accuracy"), precision: numberMetric("precision"), recall: numberMetric("recall"), prAuc: numberMetric("pr_auc"), brierScore: numberMetric("brier_score"), calibration: "Real chronological test metrics are sourced from the latest Google Sheets model report. Probabilities remain unavailable until a promoted model is present." } : { status: "awaiting_validated_history" as const, version: null, target: "M4+ in the next 24 hours", accuracy: null, precision: null, recall: null, prAuc: null, brierScore: null, calibration: "Probabilities remain unavailable until a candidate model is trained and passes chronological evaluation." },
     events: snapshot.events,
     regions: snapshot.regions,
   };

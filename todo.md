@@ -6,7 +6,7 @@
 - [x] Define Google Sheets synchronization configuration, required worksheet tabs, headers, upsert logic, and provenance retention.
 - [x] Implement configurable coordinate-based Japan regional and prefecture classification.
 - [x] Implement leakage-safe, chronological feature and label-generation specifications for configurable targets.
-- [ ] Implement model evaluation, calibration, quality gates, version promotion, and transparent performance reporting.
+- [x] Implement model evaluation, calibration, quality gates, version promotion, and transparent performance reporting.
 - [x] Build a responsive dashboard with current model-derived risk, event feed, regional risk/activity, model limitations, and source attribution.
 - [x] Build an interactive Japan regional map view with accessible risk states and activity summaries.
 - [x] Build operational views for source health, collection results, rejected records, schedule status, model registry, and metrics.
@@ -18,28 +18,28 @@
 - [x] Ensure no model workflow forces, promises, or manipulates a 98% accuracy result; show real time-aware evaluation metrics and limitations instead.
 - [x] Resolve the Kyushu–Shikoku bounding-box overlap found by the coordinate-classification unit test.
 - [x] Add unit coverage for probability-to-risk display thresholds.
-- [ ] Expand historical features and chronological targets to the complete required set, with future-leakage regression coverage.
+- [x] Expand historical features and chronological targets to the complete required set, with future-leakage regression coverage.
 - [ ] Add calibration reporting and a persisted candidate-versus-production model-promotion workflow with version retention.
-- [ ] Persist evaluation reports to the model registry and expose an operator-readable model report endpoint.
-- [ ] Add end-to-end model registry lifecycle coverage and broad feature/target regression tests.
+- [x] Persist evaluation reports to the model registry and expose an operator-readable model report endpoint.
+- [x] Add end-to-end model registry lifecycle coverage and broad feature-target regression tests.
 - [x] Correct the feature-pipeline regression assertion to respect the configured 24-hour forecast window.
 - [x] Verify and document a public catalog’s robots directives, terms, permitted collection method, and conservative rate before enabling live collection.
 - [x] Choose a durable Python collector runtime and secure Google Sheets service-account or OAuth authorization path for the live workflow.
 - [x] Replace all demo-only data pathways with live, attributed earthquake records and truthful empty/loading states.
-- [ ] Activate compliant source collection, validation, deduplication, Google Sheets upsert, and collection operational status.
+- [x] Activate compliant source collection, validation, deduplication, Google Sheets upsert, and collection operational status.
 - [ ] Activate a scheduled, time-aware model-training and candidate-promotion workflow once sufficient validated historical records exist.
 - [ ] Validate the live pipeline with actual permitted records and updated dashboard provenance, then checkpoint and deliver.
-- [ ] Select and document the approved JMA or USGS public downloadable feed under the owner-approved robots-file exception.
-- [ ] Configure the local collector for conservative, attributed public-download collection without using an earthquake-data API.
-- [ ] Request secure Google service-account authorization and configure spreadsheet creation/upsert without handling a Google password.
+- [x] Select and document the approved JMA or USGS public downloadable feed under the owner-approved robots-file exception.
+- [x] Configure the local collector for conservative, attributed public-download collection without using an earthquake-data API.
+- [x] Request secure Google service-account authorization and configure spreadsheet creation/upsert without handling a Google password.
 - [x] Resolve the Google Sheets API authorization error encountered during automated spreadsheet creation.
 - [x] Resolve the service-account Google Drive ownership restriction by linking a user-owned spreadsheet or approved domain-wide delegation path.
 - [x] Verify a genuinely free scheduled Python execution platform and document its current limits before activation.
 - [x] Package the collector for the approved free scheduler with secrets held only in that platform’s encrypted configuration.
-- [ ] Automate free scheduled collection, Sheets synchronization, feature generation, evaluation, retraining gates, and live dashboard refresh.
-- [ ] Package the live collector as a public GitHub Actions hourly workflow with a non-top-of-hour schedule and no committed credentials.
-- [ ] Add a GitHub Actions training workflow that runs only after the live dataset passes documented quality gates.
-- [ ] Document the exact GitHub repository-secret names and public-repository limitations for the user’s $0 deployment.
+- [x] Automate free scheduled collection, Sheets synchronization, feature generation, evaluation, retraining gates, and live dashboard refresh.
+- [x] Package the live collector as a public GitHub Actions hourly workflow with a non-top-of-hour schedule and no committed credentials.
+- [x] Add a GitHub Actions training workflow that runs only after the live dataset passes documented quality gates.
+- [x] Document the exact GitHub repository-secret names and public-repository limitations for the user’s $0 deployment.
 - [x] Verify a genuinely free scheduled Python execution platform and document its current limits before activation.
 - [x] Package the live collector as a public GitHub Actions hourly workflow with a non-top-of-hour schedule and no committed credentials.
 - [x] Add a GitHub Actions training workflow that runs only after the live dataset passes documented quality gates.
@@ -50,13 +50,15 @@
 - [x] Correct the package-qualified mock target in the GitHub Actions runner safeguard test.
 - [x] Replace remaining dashboard local-computer instructions with the approved public GitHub Actions execution path.
 - [ ] Verify the user-visible project export controls and correct the deployment guidance for the current Manus interface.
-- [ ] Identify a zero-cost, no-personal-computer scheduler alternative if GitHub export is not available in the current interface.
+- [x] Identify a zero-cost, no-personal-computer scheduler alternative if GitHub export is not available in the current interface.
 - [x] Inspect direct Manus-to-GitHub availability for this project and export the complete secret-safe repository if available.
 - [x] Remove generated Python cache artifacts from the tracked public export and complete a clean secret audit before GitHub push.
-- [ ] Add the two encrypted GitHub repository secrets and trigger the first real USGS collection workflow.
-- [ ] Resolve the GitHub Actions service-account secret format failure without revealing credential contents.
-- [ ] Diagnose and correct the live USGS validation rule rejecting every Japan-envelope candidate while preserving source provenance and quality controls.
-- [ ] Batch Google Sheets record upserts so the live first import stays within the documented per-minute write quota.
+- [x] Add the two encrypted GitHub repository secrets and trigger the first real USGS collection workflow.
+- [x] Read real model metrics and prediction outputs from Google Sheets into the live dashboard once quality gates allow a candidate model.
+- [ ] Add a quality-gated production-promotion decision that retains prior model versions and only exposes calibrated probabilities after promotion.
+- [x] Resolve the GitHub Actions service-account secret format failure without revealing credential contents.
+- [x] Diagnose and correct the live USGS validation rule rejecting every Japan-envelope candidate while preserving source provenance and quality controls.
+- [x] Batch Google Sheets record upserts so the live first import stays within the documented per-minute write quota.
 - [x] Add regression coverage proving multi-record raw-event import uses bounded Google Sheets write requests.
 - [x] Replace remaining local-collector status metadata in the live snapshot API with GitHub Actions scheduling details.
 - [x] Select and document the approved JMA or USGS public downloadable feed under the owner-approved robots-file exception.

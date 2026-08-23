@@ -89,9 +89,13 @@ export async function ensureLiveSpreadsheet() {
   return spreadsheetPromise;
 }
 
-export async function readRawEarthquakeRows() {
+export async function readSheetRows(tab: (typeof LIVE_SHEET_TABS)[number]) {
   const spreadsheetId = await ensureLiveSpreadsheet();
-  const result = await googleJson<{ values?: string[][] }>(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/RAW_EARTHQUAKES!A:T`);
+  const result = await googleJson<{ values?: string[][] }>(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${tab}!A:Z`);
   const [headers = [], ...rows] = result.values ?? [];
   return { spreadsheetId, rows: rows.filter(row => row[0]).map(row => Object.fromEntries(headers.map((header, index) => [header, row[index] ?? ""]))) };
+}
+
+export async function readRawEarthquakeRows() {
+  return readSheetRows("RAW_EARTHQUAKES");
 }
