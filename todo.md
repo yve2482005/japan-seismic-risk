@@ -54,7 +54,8 @@
 - [x] Inspect direct Manus-to-GitHub availability for this project and export the complete secret-safe repository if available.
 - [x] Remove generated Python cache artifacts from the tracked public export and complete a clean secret audit before GitHub push.
 - [ ] Add the two encrypted GitHub repository secrets and trigger the first real USGS collection workflow.
-- [x] Resolve the GitHub Actions service-account secret format failure without revealing credential contents.
+- [ ] Resolve the GitHub Actions service-account secret format failure without revealing credential contents.
+- [x] Diagnose and correct the live USGS validation rule rejecting every Japan-envelope candidate while preserving source provenance and quality controls.
 - [x] Replace remaining local-collector status metadata in the live snapshot API with GitHub Actions scheduling details.
 - [x] Select and document the approved JMA or USGS public downloadable feed under the owner-approved robots-file exception.
 - [x] Request secure Google service-account authorization and configure spreadsheet creation/upsert without handling a Google password.

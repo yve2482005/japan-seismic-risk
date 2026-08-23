@@ -87,16 +87,28 @@ def is_japan_monitoring_area(latitude: float, longitude: float) -> bool:
     return JAPAN_BOUNDS["min_latitude"] <= latitude <= JAPAN_BOUNDS["max_latitude"] and JAPAN_BOUNDS["min_longitude"] <= longitude <= JAPAN_BOUNDS["max_longitude"]
 
 
+def parse_usgs_timestamp(value: str | None, field_name: str) -> datetime:
+    try:
+        parsed = datetime.fromisoformat((value or "").replace("Z", "+00:00"))
+    except ValueError as error:
+        raise ValueError(f"INVALID_{field_name.upper()}_TIMESTAMP") from error
+    if parsed.tzinfo is None:
+        raise ValueError(f"INVALID_{field_name.upper()}_TIMESTAMP")
+    return parsed.astimezone(timezone.utc)
+
+
 def normalize_usgs_row(row: dict[str, str], collected_at: datetime) -> LiveRecord:
     latitude = require_number(row.get("latitude"), "latitude", -90, 90)
     longitude = require_number(row.get("longitude"), "longitude", -180, 180)
     if not is_japan_monitoring_area(latitude, longitude):
         raise ValueError("OUTSIDE_JAPAN_MONITORING_ENVELOPE")
-    origin = datetime.fromisoformat((row.get("time") or "").replace("Z", "+00:00"))
-    if origin.tzinfo is None:
-        raise ValueError("INVALID_TIMESTAMP")
+    origin = parse_usgs_timestamp(row.get("time"), "origin")
     magnitude = None if not row.get("mag") else require_number(row.get("mag"), "magnitude", -2, 10)
-    depth = require_number(row.get("depth"), "depth", 0, 750)
+    # USGS may report a small negative depth when the solved hypocenter is above
+    # the reference datum; preserve this source-valid value rather than rejecting
+    # every otherwise valid Japan-envelope event.
+    depth = require_number(row.get("depth"), "depth", -20, 750)
+    updated_at = parse_usgs_timestamp(row.get("updated"), "updated")
     event_id = row.get("id") or hashlib.sha256(json.dumps(row, sort_keys=True).encode("utf-8")).hexdigest()[:24]
     collection_time = collected_at.isoformat()
     local_time = origin.astimezone(ZoneInfo("Asia/Tokyo")).isoformat()
@@ -107,7 +119,7 @@ def normalize_usgs_row(row: dict[str, str], collected_at: datetime) -> LiveRecor
         depth_km=depth, magnitude=magnitude, magnitude_type=row.get("magType") or "", region=classify_region(latitude, longitude),
         prefecture="", nearest_city=row.get("place") or "", event_type=row.get("type") or "earthquake", collection_time=collection_time,
         data_quality="validated", duplicate_status="accepted", raw_value=row, normalized_value=normalized,
-        updated_epoch_ms=int(float(row.get("updated") or "0")),
+        updated_epoch_ms=int(updated_at.timestamp() * 1000),
     )
 
 
