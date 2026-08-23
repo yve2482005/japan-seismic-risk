@@ -23,9 +23,9 @@
 - [ ] Persist evaluation reports to the model registry and expose an operator-readable model report endpoint.
 - [ ] Add end-to-end model registry lifecycle coverage and broad feature/target regression tests.
 - [x] Correct the feature-pipeline regression assertion to respect the configured 24-hour forecast window.
-- [ ] Verify and document a public catalog’s robots directives, terms, permitted collection method, and conservative rate before enabling live collection.
-- [ ] Choose a durable Python collector runtime and secure Google Sheets service-account or OAuth authorization path for the live workflow.
-- [ ] Replace all demo-only data pathways with live, attributed earthquake records and truthful empty/loading states.
+- [x] Verify and document a public catalog’s robots directives, terms, permitted collection method, and conservative rate before enabling live collection.
+- [x] Choose a durable Python collector runtime and secure Google Sheets service-account or OAuth authorization path for the live workflow.
+- [x] Replace all demo-only data pathways with live, attributed earthquake records and truthful empty/loading states.
 - [ ] Activate compliant source collection, validation, deduplication, Google Sheets upsert, and collection operational status.
 - [ ] Activate a scheduled, time-aware model-training and candidate-promotion workflow once sufficient validated historical records exist.
 - [ ] Validate the live pipeline with actual permitted records and updated dashboard provenance, then checkpoint and deliver.
@@ -34,8 +34,8 @@
 - [ ] Request secure Google service-account authorization and configure spreadsheet creation/upsert without handling a Google password.
 - [x] Resolve the Google Sheets API authorization error encountered during automated spreadsheet creation.
 - [x] Resolve the service-account Google Drive ownership restriction by linking a user-owned spreadsheet or approved domain-wide delegation path.
-- [ ] Verify a genuinely free scheduled Python execution platform and document its current limits before activation.
-- [ ] Package the collector for the approved free scheduler with secrets held only in that platform’s encrypted configuration.
+- [x] Verify a genuinely free scheduled Python execution platform and document its current limits before activation.
+- [x] Package the collector for the approved free scheduler with secrets held only in that platform’s encrypted configuration.
 - [ ] Automate free scheduled collection, Sheets synchronization, feature generation, evaluation, retraining gates, and live dashboard refresh.
 - [ ] Package the live collector as a public GitHub Actions hourly workflow with a non-top-of-hour schedule and no committed credentials.
 - [ ] Add a GitHub Actions training workflow that runs only after the live dataset passes documented quality gates.
@@ -51,7 +51,8 @@
 - [x] Replace remaining dashboard local-computer instructions with the approved public GitHub Actions execution path.
 - [ ] Verify the user-visible project export controls and correct the deployment guidance for the current Manus interface.
 - [ ] Identify a zero-cost, no-personal-computer scheduler alternative if GitHub export is not available in the current interface.
-- [ ] Inspect direct Manus-to-GitHub availability for this project and export the complete secret-safe repository if available.
-- [ ] Remove generated Python cache artifacts from the tracked public export and complete a clean secret audit before GitHub push.
+- [x] Inspect direct Manus-to-GitHub availability for this project and export the complete secret-safe repository if available.
+- [x] Remove generated Python cache artifacts from the tracked public export and complete a clean secret audit before GitHub push.
+- [ ] Add the two encrypted GitHub repository secrets and trigger the first real USGS collection workflow.
 - [x] Select and document the approved JMA or USGS public downloadable feed under the owner-approved robots-file exception.
 - [x] Request secure Google service-account authorization and configure spreadsheet creation/upsert without handling a Google password.
