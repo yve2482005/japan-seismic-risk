@@ -2,7 +2,7 @@ import json
 import unittest
 from unittest.mock import patch
 
-from collector.github_action_runner import materialize_features, promote_rows, quality_gate, risk_level, select_production_candidate
+from collector.github_action_runner import materialize_features, production_prediction_rows, promote_rows, quality_gate, risk_level, select_production_candidate
 
 
 class GitHubActionRunnerTests(unittest.TestCase):
@@ -47,3 +47,6 @@ class GitHubActionRunnerTests(unittest.TestCase):
 
     def test_risk_level_uses_probability_not_hardcoded_activity_labels(self):
         self.assertEqual([risk_level(value) for value in (0.01, 0.06, 0.16, 0.31)], ["LOW", "MODERATE", "ELEVATED", "HIGH"])
+
+    def test_production_scoring_emits_no_rows_without_an_actual_promoted_report(self):
+        self.assertEqual(production_prediction_rows([], [], "2026-08-23T00:00:00+00:00"), [])
