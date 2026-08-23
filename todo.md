@@ -19,7 +19,7 @@
 - [x] Resolve the Kyushu–Shikoku bounding-box overlap found by the coordinate-classification unit test.
 - [x] Add unit coverage for probability-to-risk display thresholds.
 - [x] Expand historical features and chronological targets to the complete required set, with future-leakage regression coverage.
-- [ ] Add calibration reporting and a persisted candidate-versus-production model-promotion workflow with version retention.
+- [x] Add calibration reporting and a persisted candidate-versus-production model-promotion workflow with version retention.
 - [x] Persist evaluation reports to the model registry and expose an operator-readable model report endpoint.
 - [x] Add end-to-end model registry lifecycle coverage and broad feature-target regression tests.
 - [x] Correct the feature-pipeline regression assertion to respect the configured 24-hour forecast window.
@@ -55,7 +55,7 @@
 - [x] Remove generated Python cache artifacts from the tracked public export and complete a clean secret audit before GitHub push.
 - [x] Add the two encrypted GitHub repository secrets and trigger the first real USGS collection workflow.
 - [x] Read real model metrics and prediction outputs from Google Sheets into the live dashboard once quality gates allow a candidate model.
-- [ ] Add a quality-gated production-promotion decision that retains prior model versions and only exposes calibrated probabilities after promotion.
+- [x] Add a quality-gated production-promotion decision that retains prior model versions and only exposes calibrated probabilities after promotion.
 - [x] Resolve the GitHub Actions service-account secret format failure without revealing credential contents.
 - [x] Diagnose and correct the live USGS validation rule rejecting every Japan-envelope candidate while preserving source provenance and quality controls.
 - [x] Batch Google Sheets record upserts so the live first import stays within the documented per-minute write quota.

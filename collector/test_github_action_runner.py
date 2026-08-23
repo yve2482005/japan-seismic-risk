@@ -2,7 +2,7 @@ import json
 import unittest
 from unittest.mock import patch
 
-from collector.github_action_runner import materialize_features, quality_gate
+from collector.github_action_runner import materialize_features, quality_gate, select_production_candidate
 
 
 class GitHubActionRunnerTests(unittest.TestCase):
@@ -20,3 +20,9 @@ class GitHubActionRunnerTests(unittest.TestCase):
         passed, detail = quality_gate(records)
         self.assertFalse(passed)
         self.assertEqual(detail["records"], 1)
+
+    def test_selects_only_the_best_calibrated_candidate_for_production(self):
+        def candidate(pr_auc: float, brier: float, ece: float):
+            return {"metrics_json": json.dumps({"pr_auc": pr_auc, "brier_score": brier, "calibration": {"expected_calibration_error": ece}})}
+        rows = [candidate(0.41, 0.18, 0.11), candidate(0.53, 0.21, 0.08), candidate(0.98, 0.30, 0.05)]
+        self.assertEqual(select_production_candidate(rows), 1)

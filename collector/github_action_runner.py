@@ -18,17 +18,19 @@ from typing import Any
 import numpy as np
 
 try:
-    from .google_sheets_sink import append_system_log, create_or_prepare_spreadsheet, read_tab_records, replace_derived_tab, upsert_raw_records
+    from .google_sheets_sink import append_derived_records, append_system_log, create_or_prepare_spreadsheet, read_tab_records, replace_derived_tab, upsert_raw_records
     from .live_usgs_pipeline import USGS_CSV_URL, download_csv, normalize_usgs_row
     from .train_models import FEATURE_NAMES, STANDARD_TARGETS, build_dataset, parse_time, train
 except ImportError:
-    from google_sheets_sink import append_system_log, create_or_prepare_spreadsheet, read_tab_records, replace_derived_tab, upsert_raw_records
+    from google_sheets_sink import append_derived_records, append_system_log, create_or_prepare_spreadsheet, read_tab_records, replace_derived_tab, upsert_raw_records
     from live_usgs_pipeline import USGS_CSV_URL, download_csv, normalize_usgs_row
     from train_models import FEATURE_NAMES, STANDARD_TARGETS, build_dataset, parse_time, train
 
 MIN_TRAINING_RECORDS = 500
 MIN_HISTORY_DAYS = 90
 MIN_POSITIVE_LABELS = 12
+MAX_EXPECTED_CALIBRATION_ERROR = 0.20
+MAX_BRIER_SCORE = 0.25
 
 
 def require_environment(name: str) -> str:
@@ -98,6 +100,20 @@ def quality_gate(records: list[dict[str, Any]]) -> tuple[bool, dict[str, Any]]:
     return passed, {"records": len(records), "history_days": round(history_days, 2), "positive_labels": positives, "minimum_records": MIN_TRAINING_RECORDS, "minimum_history_days": MIN_HISTORY_DAYS, "minimum_positive_labels": MIN_POSITIVE_LABELS}
 
 
+def select_production_candidate(rows: list[dict[str, Any]]) -> int | None:
+    """Select one candidate only when calibration and held-out uncertainty checks pass."""
+    eligible: list[tuple[int, float]] = []
+    for index, row in enumerate(rows):
+        metrics = json.loads(row["metrics_json"])
+        calibration = metrics.get("calibration", {})
+        pr_auc = metrics.get("pr_auc")
+        brier = metrics.get("brier_score")
+        ece = calibration.get("expected_calibration_error")
+        if isinstance(pr_auc, (int, float)) and isinstance(brier, (int, float)) and isinstance(ece, (int, float)) and brier <= MAX_BRIER_SCORE and ece <= MAX_EXPECTED_CALIBRATION_ERROR:
+            eligible.append((index, float(pr_auc)))
+    return max(eligible, key=lambda item: item[1])[0] if eligible else None
+
+
 def train_if_ready(spreadsheet_id: str, records: list[dict[str, Any]]) -> dict[str, Any]:
     passed, gate = quality_gate(records)
     if not passed:
@@ -123,9 +139,18 @@ def train_if_ready(spreadsheet_id: str, records: list[dict[str, Any]]) -> dict[s
         result = {"status": "deferred_class_diversity", "deferred_targets": deferred_targets, **gate}
         append_system_log(spreadsheet_id, "training", "info", "Training deferred: no target had sufficient chronological class diversity", result)
         return result
-    replace_derived_tab(spreadsheet_id, "MODEL_METRICS", rows)
-    result = {"status": "candidate_reports_generated", "reports": len(rows), "deferred_targets": deferred_targets, **gate}
-    append_system_log(spreadsheet_id, "training", "info", "Chronological candidate reports generated", result)
+    promoted = 0
+    by_target: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        by_target.setdefault(row["target_definition"], []).append(row)
+    for target_rows in by_target.values():
+        selected_index = select_production_candidate(target_rows)
+        if selected_index is not None:
+            target_rows[selected_index]["status"] = "production"
+            promoted += 1
+    append_derived_records(spreadsheet_id, "MODEL_METRICS", rows)
+    result = {"status": "production_models_promoted" if promoted else "candidate_reports_generated", "reports": len(rows), "promoted_models": promoted, "deferred_targets": deferred_targets, "promotion_thresholds": {"max_brier_score": MAX_BRIER_SCORE, "max_expected_calibration_error": MAX_EXPECTED_CALIBRATION_ERROR}, **gate}
+    append_system_log(spreadsheet_id, "training", "info", "Chronological candidate reports evaluated for promotion", result)
     return result
 
 

@@ -136,5 +136,15 @@ def replace_derived_tab(spreadsheet_id: str, tab: str, records: Iterable[dict[st
     return len(rows)
 
 
+def append_derived_records(spreadsheet_id: str, tab: str, records: Iterable[dict[str, Any]]) -> int:
+    if tab not in TAB_HEADERS:
+        raise ValueError(f"Unsupported worksheet: {tab}")
+    headers = TAB_HEADERS[tab]
+    rows = [[record.get(header, "") for header in headers] for record in records]
+    if rows:
+        sheet_service().spreadsheets().values().append(spreadsheetId=spreadsheet_id, range=f"{tab}!A:Z", valueInputOption="RAW", insertDataOption="INSERT_ROWS", body={"values": rows}).execute()
+    return len(rows)
+
+
 def append_system_log(spreadsheet_id: str, component: str, severity: str, message: str, context: dict[str, Any]) -> None:
     sheet_service().spreadsheets().values().append(spreadsheetId=spreadsheet_id, range="SYSTEM_LOG!A:E", valueInputOption="RAW", insertDataOption="INSERT_ROWS", body={"values": [[__import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(), component, severity, message, json.dumps(context, ensure_ascii=False)]]}).execute()
