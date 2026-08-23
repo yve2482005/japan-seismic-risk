@@ -23,6 +23,18 @@ Do not alter the approved live USGS collection cadence or broaden the Japan enve
 3. Do not broaden the Japan envelope, accept non-earthquake event types, weaken validation, or count source revisions as new events. These would inflate the record count without increasing scientifically valid training evidence.
 4. If the owner approves after a specific artifact-level compliance review, design a one-time, separately attributed JMA historical-backfill workflow for model-development history. It must preserve source-specific records, use time-aware source-aware evaluation, and keep the live USGS feed as the sole dashboard activity source unless later approved otherwise.
 
+## Additional-Source Screening
+
+| Candidate | Finding | Decision |
+| --- | --- | --- |
+| USGS hour/day/week feeds | Smaller rolling windows that overlap the existing `all_month.csv` source. | Reject for unique-record growth. |
+| NIED Hi-net / JUICE | Downloadable historical material exists, but NIED states that redistribution of seismic data is prohibited. | Reject. |
+| EMSC / SeismicPortal | The official data-query page describes web services including FDSN and real-time WebSocket access. Its terms reserve rights except for stated limited or dataset-specific use. | Reject: the project prohibits earthquake-data APIs and lacks a specific approved downloadable Japan catalog license. |
+| ISC-GEM | Static CSV is available under CC-BY-SA 3.0, but its coverage is historical (through 2021) and focuses on large events, generally M5.5+ with limited lower-magnitude continental coverage. | Do not use for live-rate acceleration; potentially useful only as a separately evaluated long-term calibration reference. |
+| JMA bulletin ZIP archive | Official static monthly archive, 1997-10 to 2023-12, with JMA attribution terms. | The only viable candidate for a separately sourced one-time historical backfill, pending artifact-level compliance review and owner approval. |
+
+A research-only inspection of the official December 2023 JMA earthquake-parameter ZIP returned HTTP 200 as a static 316 KB ZIP containing one 1.52 MB fixed-width text file. The file has 16,763 lines including three header lines, indicating approximately 16,760 candidate event lines for that month before parsing, validation, and source-specific quality checks. These records were not imported into the project.
+
 ## Sources
 
 - https://earthquake.usgs.gov/earthquakes/feed/v1.0/csv.php

@@ -69,3 +69,5 @@
 - [x] Compare future candidate models with effective production metrics, retain status-transition history, and preserve a production version unless all safeguards improve.
 - [x] Assess scientifically responsible, terms-compliant options to improve the validated Japan seismic data accumulation rate without expanding beyond the approved monitoring scope.
 - [ ] Await explicit owner approval before designing any one-time JMA historical-backfill workflow; do not activate it until artifact-level access, attribution, schema, and source-separation safeguards are reviewed.
+- [ ] Assess candidate public downloadable earthquake sources for unique Japan coverage, explicit access permission, data overlap, and source-separated model suitability; do not promise a fourfold increase or activate any source before review.
+- [ ] Obtain explicit owner approval for a source-separated one-time JMA historical ZIP backfill, or retain USGS as the sole source; do not use NIED, EMSC web services, or overlapping USGS feeds.
