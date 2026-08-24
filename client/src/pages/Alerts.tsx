@@ -1,7 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
 import { approximateDistanceKm } from "@/lib/geo";
-import { isForegroundAlertThreshold, shouldPlayForegroundSound, shouldTriggerForegroundAlert, type ForegroundAlertThreshold } from "@/lib/foregroundAlerts";
+import { isForegroundAlertThreshold, shouldPlayForegroundSound, shouldTriggerForegroundAlert, testAlertMode, type ForegroundAlertThreshold } from "@/lib/foregroundAlerts";
 import { isEventWithinNearbyRadius, isNearbyRadiusKm, type NearbyRadiusKm } from "@/lib/nearbyAlerts";
 import { magnitudeSoundLabel, playMagnitudeSound } from "@/lib/notificationSounds";
 import { trpc } from "@/lib/trpc";
@@ -194,6 +194,26 @@ export default function Alerts() {
     );
   };
 
+  const runTestAlert = () => {
+    const magnitude = preferences.foregroundMinimumMagnitude;
+    const mode = testAlertMode(preferences.sound, preferences.visualOnly);
+    if (mode === "visual_only") {
+      showVisualAlert(magnitude);
+      setSoundMessage(`Test Alert: visual-only mode is working at M${magnitude}. No sound was played.`);
+      return;
+    }
+    if (mode === "sound_and_visual") {
+      if (playMagnitudeSound(magnitude)) {
+        showVisualAlert(magnitude);
+        setSoundMessage(`Test Alert: sound and red visual alert are working at M${magnitude}.`);
+      } else {
+        setSoundMessage("Test Alert could not start sound in this browser. Check browser or device audio settings.");
+      }
+      return;
+    }
+    setSoundMessage("Test Alert: foreground sound is off. Turn on Sound or Mute sound — visual alert only to test an alert.");
+  };
+
   return (
     <main className="min-h-screen bg-[#f5f7f8] text-slate-950">
       <header className="border-b border-slate-200 bg-white">
@@ -259,6 +279,12 @@ export default function Alerts() {
             <Toggle label="Sound (supported when app is open)" icon={<Volume2 size={15} />} checked={preferences.sound} onChange={sound => update({ sound })} />
             <Toggle label="Mute sound — visual alert only" icon={<BellRing size={15} />} checked={preferences.visualOnly} onChange={visualOnly => update({ visualOnly })} />
             <Toggle label="Vibration (device support only)" icon={<Vibrate size={15} />} checked={preferences.vibration} onChange={vibration => update({ vibration })} />
+          </div>
+
+          <div className="mt-5 rounded-2xl border border-[#f0b5ae] bg-[#fff8f7] p-4">
+            <p className="text-sm font-black">Quick alert test</p>
+            <p className="mt-1 text-xs leading-5 text-slate-600">Current foreground settings ကိုသာ စမ်းသပ်မည်ဖြစ်ပြီး earthquake record, alert history သို့မဟုတ် background notification မဖန်တီးပါ။</p>
+            <button onClick={runTestAlert} className="mt-3 inline-flex items-center gap-2 rounded-xl bg-[#b42318] px-4 py-2.5 text-sm font-black text-white shadow-sm hover:bg-[#8f1d14]"><BellRing size={16} />Test Alert</button>
           </div>
 
           <div className="mt-5 rounded-2xl border border-[#b8d9eb] bg-[#edf7fc] p-4">

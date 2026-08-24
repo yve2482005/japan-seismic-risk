@@ -11,3 +11,10 @@ export function shouldTriggerForegroundAlert(enabled: boolean, minimumMagnitude:
 export function shouldPlayForegroundSound(soundEnabled: boolean, visualOnly: boolean) {
   return soundEnabled && !visualOnly;
 }
+
+export type TestAlertMode = "sound_and_visual" | "visual_only" | "disabled";
+
+export function testAlertMode(soundEnabled: boolean, visualOnly: boolean): TestAlertMode {
+  if (visualOnly) return "visual_only";
+  return soundEnabled ? "sound_and_visual" : "disabled";
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isForegroundAlertThreshold, shouldPlayForegroundSound, shouldTriggerForegroundAlert } from "./foregroundAlerts";
+import { isForegroundAlertThreshold, shouldPlayForegroundSound, shouldTriggerForegroundAlert, testAlertMode } from "./foregroundAlerts";
 
 describe("foreground alert threshold", () => {
   it("accepts only the available magnitude thresholds", () => {
@@ -19,5 +19,11 @@ describe("foreground alert threshold", () => {
     expect(shouldPlayForegroundSound(true, false)).toBe(true);
     expect(shouldPlayForegroundSound(true, true)).toBe(false);
     expect(shouldPlayForegroundSound(false, false)).toBe(false);
+  });
+
+  it("uses the same effective mode for the one-tap test as it does for foreground alerts", () => {
+    expect(testAlertMode(true, false)).toBe("sound_and_visual");
+    expect(testAlertMode(true, true)).toBe("visual_only");
+    expect(testAlertMode(false, false)).toBe("disabled");
   });
 });
