@@ -2,6 +2,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
 import { approximateDistanceKm } from "@/lib/geo";
 import { isForegroundAlertThreshold, shouldPlayForegroundSound, shouldTriggerForegroundAlert, type ForegroundAlertThreshold } from "@/lib/foregroundAlerts";
+import { isEventWithinNearbyRadius, isNearbyRadiusKm, type NearbyRadiusKm } from "@/lib/nearbyAlerts";
 import { magnitudeSoundLabel, playMagnitudeSound } from "@/lib/notificationSounds";
 import { trpc } from "@/lib/trpc";
 import { showVisualAlert } from "@/lib/visualAlert";
@@ -14,6 +15,8 @@ import { Link } from "wouter";
 type Preferences = {
   minimumMagnitude: ForegroundAlertThreshold;
   foregroundMinimumMagnitude: ForegroundAlertThreshold;
+  nearbyOnly: boolean;
+  nearbyRadiusKm: NearbyRadiusKm;
   visualOnly: boolean;
   regions: JapanRegion[];
   sound: boolean;
@@ -27,6 +30,8 @@ const KEY = "japan-seismic-alert-preferences-v1";
 const defaults: Preferences = {
   minimumMagnitude: 4,
   foregroundMinimumMagnitude: 4,
+  nearbyOnly: false,
+  nearbyRadiusKm: 250,
   visualOnly: false,
   regions: [...JAPAN_REGIONS],
   sound: true,
@@ -42,6 +47,8 @@ function readPreferences(): Preferences {
     return {
       minimumMagnitude: isForegroundAlertThreshold(parsed.minimumMagnitude) ? parsed.minimumMagnitude : 4,
       foregroundMinimumMagnitude: isForegroundAlertThreshold(parsed.foregroundMinimumMagnitude) ? parsed.foregroundMinimumMagnitude : 4,
+      nearbyOnly: Boolean(parsed.nearbyOnly),
+      nearbyRadiusKm: isNearbyRadiusKm(parsed.nearbyRadiusKm) ? parsed.nearbyRadiusKm : 250,
       visualOnly: Boolean(parsed.visualOnly),
       regions: Array.isArray(parsed.regions)
         ? parsed.regions.filter((region): region is JapanRegion => JAPAN_REGIONS.includes(region as JapanRegion))
@@ -95,7 +102,14 @@ export default function Alerts() {
     }
     const fresh = incoming.filter(alert => !seededAlertIds.current!.has(alert.alertId));
     incoming.forEach(alert => seededAlertIds.current!.add(alert.alertId));
-    const visible = fresh.filter(alert => shouldTriggerForegroundAlert(true, preferences.foregroundMinimumMagnitude, alert.eventMagnitude));
+    const thresholdEligible = fresh.filter(alert => shouldTriggerForegroundAlert(true, preferences.foregroundMinimumMagnitude, alert.eventMagnitude));
+    if (preferences.nearbyOnly && !location) {
+      if (thresholdEligible.length) setSoundMessage("Nearby location filter is on. Use your location before receiving local foreground alerts.");
+      return;
+    }
+    const visible = preferences.nearbyOnly
+      ? thresholdEligible.filter(alert => isEventWithinNearbyRadius(location, alert, preferences.nearbyRadiusKm))
+      : thresholdEligible;
     if (!visible.length) return;
     const strongest = Math.max(...visible.map(alert => alert.eventMagnitude));
     if (preferences.visualOnly) {
@@ -105,7 +119,7 @@ export default function Alerts() {
       if (playMagnitudeSound(strongest)) showVisualAlert(strongest);
       else setSoundMessage("This browser cannot play an in-app sound. You can still view the alert history.");
     }
-  }, [preferences.foregroundMinimumMagnitude, preferences.sound, preferences.visualOnly, snapshot.data?.alerts]);
+  }, [location, preferences.foregroundMinimumMagnitude, preferences.nearbyOnly, preferences.nearbyRadiusKm, preferences.sound, preferences.visualOnly, snapshot.data?.alerts]);
 
   const alerts = useMemo(
     () => (snapshot.data?.alerts ?? []).filter(alert => alert.eventMagnitude >= preferences.minimumMagnitude && preferences.regions.includes(alert.region)),
@@ -225,6 +239,20 @@ export default function Alerts() {
               </select>
             </label>
             <p className="mt-2 text-xs leading-5 text-slate-600">App ဖွင့်ထားချိန်တွင် အသံနှင့် အနီရောင် visual effect စတင်မည့် level ကိုသာ သီးခြားရွေးပါသည်။ Alert history နှင့် background notification setting ကို မပြောင်းလဲပါ။</p>
+          </div>
+
+          <div className="mt-5 rounded-2xl border border-[#bdd5c6] bg-[#f2fbf5] p-4">
+            <Toggle label="Nearby location only" icon={<LocateFixed size={15} />} checked={preferences.nearbyOnly} onChange={nearbyOnly => update({ nearbyOnly })} />
+            {preferences.nearbyOnly && <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <label className="text-sm font-bold">Nearby radius
+                <select value={preferences.nearbyRadiusKm} onChange={event => update({ nearbyRadiusKm: Number(event.target.value) as NearbyRadiusKm })} className="mt-2 block w-full rounded-xl border border-[#a8ccb4] bg-white px-3 py-2 text-sm">
+                  <option value={100}>Within 100 km</option><option value={250}>Within 250 km</option><option value={500}>Within 500 km</option>
+                </select>
+              </label>
+              <div><p className="text-sm font-bold">Your current location</p><button onClick={requestLocation} className="mt-2 rounded-xl border border-[#a8ccb4] bg-white px-3 py-2 text-sm font-bold hover:border-slate-950">{location ? "Refresh location" : "Use my location"}</button></div>
+            </div>}
+            <p className="mt-3 text-xs leading-5 text-slate-600">Nearby-only is for app-open sound and red visual alerts. Your precise location stays only in this browser session and is not sent to the server. App-closed background notifications continue to use your selected region filter.</p>
+            {preferences.nearbyOnly && <p className="mt-2 text-xs font-bold text-slate-700">{location ? `Nearby filter active: within ${preferences.nearbyRadiusKm} km.` : "Choose “Use my location” to activate the nearby filter."}</p>}
           </div>
 
           <div className="mt-5 grid gap-2 sm:grid-cols-2">

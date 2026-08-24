@@ -118,3 +118,4 @@
 - [x] Add an accessible red visual alert effect that accompanies foreground alert sounds and respects reduced-motion preferences.
 - [x] Add a user-controlled minimum magnitude setting for foreground alert sounds and visual effects, separate from history and background-push filters.
 - [x] Add a user-controlled visual-only mute mode that suppresses foreground sound while retaining red visual alerts.
+- [x] Add a local-only nearby-location radius filter for foreground alerts without sending precise location to the server or changing background-push delivery.
