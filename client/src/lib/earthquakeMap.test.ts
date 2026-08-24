@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isCloseEpicenterDistance, isWithinJapanMapBounds, mapCoordinate, mapDistanceSegment, mapMarkerStyle } from "./earthquakeMap";
+import { isCloseEpicenterDistance, isWithinJapanMapBounds, mapCoordinate, mapDistanceSegment, mapMarkerStyle, mapReferenceRing } from "./earthquakeMap";
 
 describe("earthquake map helpers", () => {
   it("maps Japan-envelope coordinates into a safely visible plotting area", () => {
@@ -26,5 +26,13 @@ describe("earthquake map helpers", () => {
     expect(isCloseEpicenterDistance(100)).toBe(true);
     expect(isCloseEpicenterDistance(101)).toBe(false);
     expect(isCloseEpicenterDistance(null)).toBe(false);
+  });
+
+  it("creates a bounded 100 km reference ring that reflects the approximate map scale", () => {
+    const ring = mapReferenceRing(35);
+    expect(ring.width).toBeGreaterThan(0);
+    expect(ring.height).toBeGreaterThan(0);
+    expect(ring.width).toBeLessThanOrEqual(30);
+    expect(ring.height).toBeLessThanOrEqual(30);
   });
 });

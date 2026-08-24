@@ -33,3 +33,14 @@ export function mapDistanceSegment(from: { left: number; top: number }, to: { le
     labelTop: (from.top + to.top) / 2,
   };
 }
+
+export function mapReferenceRing(latitude: number, radiusKm = CLOSE_DISTANCE_KM) {
+  const latitudeRadians = latitude * Math.PI / 180;
+  const kmPerLongitudeDegree = Math.max(1, 111.32 * Math.cos(latitudeRadians));
+  const horizontalRadiusPercent = (radiusKm / kmPerLongitudeDegree) * 100 / (JAPAN_MAP_BOUNDS.east - JAPAN_MAP_BOUNDS.west);
+  const verticalRadiusPercent = (radiusKm / 110.574) * 100 / (JAPAN_MAP_BOUNDS.north - JAPAN_MAP_BOUNDS.south);
+  return {
+    width: Math.min(30, horizontalRadiusPercent * 2),
+    height: Math.min(30, verticalRadiusPercent * 2),
+  };
+}
