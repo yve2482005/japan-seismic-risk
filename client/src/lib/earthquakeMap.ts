@@ -1,4 +1,9 @@
 export const JAPAN_MAP_BOUNDS = { west: 120, east: 155, south: 20, north: 50 };
+export const CLOSE_DISTANCE_KM = 100;
+
+export function isCloseEpicenterDistance(distanceKm: number | null) {
+  return distanceKm !== null && Number.isFinite(distanceKm) && distanceKm <= CLOSE_DISTANCE_KM;
+}
 
 export function isWithinJapanMapBounds(latitude: number, longitude: number) {
   return latitude >= JAPAN_MAP_BOUNDS.south && latitude <= JAPAN_MAP_BOUNDS.north && longitude >= JAPAN_MAP_BOUNDS.west && longitude <= JAPAN_MAP_BOUNDS.east;

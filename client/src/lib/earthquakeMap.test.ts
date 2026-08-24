@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isWithinJapanMapBounds, mapCoordinate, mapDistanceSegment, mapMarkerStyle } from "./earthquakeMap";
+import { isCloseEpicenterDistance, isWithinJapanMapBounds, mapCoordinate, mapDistanceSegment, mapMarkerStyle } from "./earthquakeMap";
 
 describe("earthquake map helpers", () => {
   it("maps Japan-envelope coordinates into a safely visible plotting area", () => {
@@ -20,5 +20,11 @@ describe("earthquake map helpers", () => {
 
   it("positions an approximate distance line between two visible map points", () => {
     expect(mapDistanceSegment({ left: 10, top: 20 }, { left: 40, top: 20 })).toMatchObject({ left: 10, top: 20, length: 30, angle: 0, labelLeft: 25, labelTop: 20 });
+  });
+
+  it("marks only distances at or below 100 km as close", () => {
+    expect(isCloseEpicenterDistance(100)).toBe(true);
+    expect(isCloseEpicenterDistance(101)).toBe(false);
+    expect(isCloseEpicenterDistance(null)).toBe(false);
   });
 });

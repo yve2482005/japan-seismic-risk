@@ -124,3 +124,4 @@
 - [x] Improve the live USGS earthquake map view so users can clearly locate and inspect plotted event markers without implying official warning coverage.
 - [x] Add a clear Current Location control that places a browser-session-only user marker on the live map without persisting or sending precise location.
 - [x] Show the local-session approximate distance between Current Location and a selected USGS earthquake epicenter on the map and detail panel.
+- [x] Emphasize selected-event distances at or below 100 km with accessible red proximity styling while retaining approximate-distance boundaries.
