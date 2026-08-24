@@ -136,3 +136,4 @@
 - [x] Add an accessible visible UI indicator whenever the saved quiet-hours schedule is currently muting foreground alert sounds.
 - [x] Add an accessible hover and keyboard-focus tooltip to the active Quiet Hours indicator with its local schedule and foreground-alert scope.
 - [x] Add a gentle reduced-motion-aware pulse animation to the active amber Quiet Hours indicator.
+- [x] Audit and implement a scoped future-level upgrade that improves the public monitoring experience without weakening $0 operation, data provenance, alert safety, or scientific boundaries.

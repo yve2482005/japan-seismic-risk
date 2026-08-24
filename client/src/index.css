@@ -37,8 +37,20 @@ button:focus-visible, [role="button"]:focus-visible { outline: 2px solid #111; o
 .accent-blue { top: 120px; right: 9%; width: 140px; height: 140px; border-radius: 38px; background: #c8dded; transform: rotate(18deg); }
 .accent-pink { top: 420px; left: -35px; width: 160px; height: 88px; border-radius: 999px; background: #f7c7c2; transform: rotate(-28deg); }
 .map-shell svg g:focus circle, .map-shell svg g:hover circle { filter: drop-shadow(0 3px 2px rgba(0,0,0,.18)); }
+.seismic-brand-mark { background: linear-gradient(145deg, #071426 0%, #123658 58%, #2d7ca8 100%); box-shadow: 0 8px 20px rgba(18, 54, 88, .22); }
+.seismic-hero { position: relative; isolation: isolate; overflow: hidden; background: radial-gradient(circle at 89% 20%, rgba(56, 189, 248, .25), transparent 30%), linear-gradient(135deg, #020817 0%, #061d35 54%, #0b3656 100%); }
+.seismic-hero > * { position: relative; z-index: 1; }
+.seismic-hero-grid { position: absolute; z-index: 0; inset: 0; opacity: .26; background-image: linear-gradient(rgba(186, 230, 253, .38) 1px, transparent 1px), linear-gradient(90deg, rgba(186, 230, 253, .38) 1px, transparent 1px); background-size: 28px 28px; mask-image: linear-gradient(90deg, transparent, #000 35%, #000); }
+.seismic-hero-grid::after { content: ""; position: absolute; right: 9%; top: 48%; width: 10rem; height: 10rem; border: 1px solid rgba(186, 230, 253, .58); border-radius: 999px; box-shadow: 0 0 0 1.5rem rgba(186, 230, 253, .08), 0 0 0 3.25rem rgba(186, 230, 253, .04); transform: translateY(-50%); }
+.seismic-live-telemetry { border: 1px solid rgba(186, 230, 253, .24); border-radius: 1rem; background: rgba(2, 8, 23, .3); padding: .75rem 1rem; backdrop-filter: blur(8px); }
+.seismic-live-dot { width: .5rem; height: .5rem; border-radius: 999px; background: #fbbf24; box-shadow: 0 0 0 .25rem rgba(251, 191, 36, .13); }
+.seismic-live-dot-active { background: #4ade80; box-shadow: 0 0 0 .25rem rgba(74, 222, 128, .13); }
+.seismic-quick-action { display: flex; min-width: 0; align-items: flex-start; transition: transform 180ms cubic-bezier(.23, 1, .32, 1), border-color 180ms cubic-bezier(.23, 1, .32, 1), box-shadow 180ms cubic-bezier(.23, 1, .32, 1); }
+.seismic-quick-action:hover { border-color: #7eb7d8; box-shadow: 0 10px 24px rgba(39, 130, 181, .11); transform: translateY(-2px); }
+.seismic-quick-action-icon { display: grid; flex: 0 0 auto; width: 2.5rem; height: 2.5rem; place-items: center; border-radius: .9rem; background: #e4f3fb; color: #14567d; }
 
 @media (prefers-reduced-motion: no-preference) { button, .map-shell circle { transition-timing-function: cubic-bezier(.23, 1, .32, 1); } button:active { transform: scale(.97); } }
+@media (prefers-reduced-motion: reduce) { .seismic-quick-action { transition: none; } .seismic-quick-action:hover { transform: none; } }
 @media (max-width: 640px) { .accent-blue { right: -55px; top: 220px; width: 115px; height: 115px; } .accent-pink { top: 580px; opacity: .48; } }
 
 .seismic-visual-alert { position: fixed; inset: 0; z-index: 100; display: flex; align-items: flex-start; justify-content: center; padding: max(1.25rem, env(safe-area-inset-top)) 1rem 1rem; pointer-events: none; border: 10px solid rgba(220, 38, 38, .94); box-shadow: inset 0 0 0 5px rgba(255,255,255,.82), inset 0 0 58px rgba(220, 38, 38, .52); background: rgba(220, 38, 38, .12); color: #fff; font-size: .875rem; font-weight: 900; text-align: center; text-shadow: 0 1px 3px rgba(0,0,0,.7); animation: seismic-alert-flash 1.65s cubic-bezier(.23, 1, .32, 1) both; }
