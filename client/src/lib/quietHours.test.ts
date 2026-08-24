@@ -17,6 +17,13 @@ describe("quiet-hours sound muting", () => {
     expect(isQuietHoursActive({ ...daytimeQuietHours, start: "09:00", end: "09:00" }, new Date(2026, 7, 24, 9, 30))).toBe(false);
   });
 
+  it("provides a reliable active condition for a quiet-hours status indicator", () => {
+    const quietHours = { ...DEFAULT_QUIET_HOURS, enabled: true, start: "22:00", end: "07:00" };
+    expect(isQuietHoursActive(quietHours, new Date(2026, 7, 24, 21, 59))).toBe(false);
+    expect(isQuietHoursActive(quietHours, new Date(2026, 7, 24, 22, 0))).toBe(true);
+    expect(isQuietHoursActive({ ...quietHours, enabled: false }, new Date(2026, 7, 24, 22, 0))).toBe(false);
+  });
+
   it("mutes for visual-only mode or valid enabled quiet hours", () => {
     const daytimeQuietHours = { ...DEFAULT_QUIET_HOURS, enabled: true, start: "09:00", end: "17:00" };
     expect(foregroundSoundIsMuted(true, DEFAULT_QUIET_HOURS, new Date(2026, 7, 24, 12, 0))).toBe(true);

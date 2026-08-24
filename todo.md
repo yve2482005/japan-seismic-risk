@@ -133,3 +133,4 @@
 - [x] Add a dedicated non-event Test Siren control so users can preview the current five-second M6+ sound from settings.
 - [x] Add saved magnitude-specific sound options for M4.0–M5.9 and M6.0+ while preserving visual-only mute behavior.
 - [x] Add a saved local quiet-hours schedule that mutes foreground sound while retaining visual alerts and leaving device-level background notification controls unchanged.
+- [x] Add an accessible visible UI indicator whenever the saved quiet-hours schedule is currently muting foreground alert sounds.

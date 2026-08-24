@@ -10,7 +10,7 @@ import { trpc } from "@/lib/trpc";
 import { showVisualAlert } from "@/lib/visualAlert";
 import { getBrowserPushSubscription, removeBrowserPushSubscription } from "@/lib/webPush";
 import { JAPAN_REGIONS, type JapanRegion } from "@shared/seismic";
-import { ArrowLeft, Bell, BellRing, CheckCircle2, LocateFixed, MapPin, Moon, Settings2, Sun, Volume2, Vibrate } from "lucide-react";
+import { ArrowLeft, Bell, BellOff, BellRing, CheckCircle2, LocateFixed, MapPin, Moon, Settings2, Sun, Volume2, Vibrate } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
 
@@ -102,10 +102,19 @@ export default function Alerts() {
   const [location, setLocation] = useState<SessionLocation>(null);
   const [locationMessage, setLocationMessage] = useState("Location is not enabled.");
   const [soundMessage, setSoundMessage] = useState("Choose a magnitude tier to test its in-app sound and visual alert.");
+  const [currentTime, setCurrentTime] = useState(() => new Date());
   const seededAlertIds = useRef<Set<string> | null>(null);
+  const quietHours = { enabled: preferences.quietHoursEnabled, start: preferences.quietHoursStart, end: preferences.quietHoursEnd };
+  const quietHoursActive = isQuietHoursActive(quietHours, currentTime);
 
   useEffect(() => {
     setPreferences(readPreferences());
+  }, []);
+
+  useEffect(() => {
+    const refreshCurrentTime = () => setCurrentTime(new Date());
+    const intervalId = window.setInterval(refreshCurrentTime, 60_000);
+    return () => window.clearInterval(intervalId);
   }, []);
 
   useEffect(() => {
@@ -147,7 +156,6 @@ export default function Alerts() {
 
   const update = (partial: Partial<Preferences>) => setPreferences(current => ({ ...current, ...partial }));
   const magnitudeSoundOptions = { midMagnitude: preferences.midMagnitudeSound, highMagnitude: preferences.highMagnitudeSound };
-  const quietHours = { enabled: preferences.quietHoursEnabled, start: preferences.quietHoursStart, end: preferences.quietHoursEnd };
 
   const enableBackgroundPush = async () => {
     if (!isAuthenticated) return startLogin();
@@ -268,6 +276,14 @@ export default function Alerts() {
             <BellRing className="shrink-0 text-[#c8dded]" size={28} />
           </div>
         </section>
+
+        {quietHoursActive && <section role="status" aria-live="polite" className="mt-4 flex items-start gap-3 rounded-2xl border border-[#d98600] bg-[#fff4d6] p-4 text-[#633500] shadow-sm">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#d97706] text-white"><BellOff size={18} aria-hidden="true" /></span>
+          <div>
+            <p className="font-black">Quiet Hours အလုပ်လုပ်နေသည်</p>
+            <p className="mt-1 text-sm leading-5">Local time {preferences.quietHoursStart}–{preferences.quietHoursEnd} အတွင်း foreground alert sound ကို ပိတ်ထားပြီး red visual alert ကိုသာ ဆက်ပြမည်ဖြစ်သည်။</p>
+          </div>
+        </section>}
 
         <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center gap-2"><Settings2 size={18} /><h2 className="font-black">သင့် alert settings</h2></div>
