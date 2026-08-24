@@ -137,3 +137,4 @@
 - [x] Add an accessible hover and keyboard-focus tooltip to the active Quiet Hours indicator with its local schedule and foreground-alert scope.
 - [x] Add a gentle reduced-motion-aware pulse animation to the active amber Quiet Hours indicator.
 - [x] Audit and implement a scoped future-level upgrade that improves the public monitoring experience without weakening $0 operation, data provenance, alert safety, or scientific boundaries.
+- [x] Add a visible real-time refresh indicator while live-source telemetry data is being retrieved.

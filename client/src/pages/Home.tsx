@@ -1,6 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import type { RegionActivity } from "@shared/seismic";
-import { AlertTriangle, BellRing, Clock3, MapPinned, RefreshCcw, ShieldCheck, Waves } from "lucide-react";
+import { AlertTriangle, BellRing, Clock3, LoaderCircle, MapPinned, RefreshCcw, ShieldCheck, Waves } from "lucide-react";
 import { useMemo } from "react";
 import { Link } from "wouter";
 import { activityLabel, modelStatusCopy } from "./dashboardCopy";
@@ -38,13 +38,14 @@ export default function Home() {
 
   const hasProductionModel = data.model.status === "production";
   const sourceActive = data.collection.status === "active";
+  const isRefreshing = snapshot.isFetching && !snapshot.isLoading;
 
   return (
     <main className="min-h-screen bg-[#f5f7f8] text-slate-950 selection:bg-[#c8dded]">
       <header className="border-b border-slate-200 bg-white/85 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-5 py-4 sm:px-8">
           <div className="flex items-center gap-3"><span className="seismic-brand-mark grid h-10 w-10 place-items-center rounded-2xl text-white"><Waves size={19} /></span><div><p className="text-[10px] font-extrabold tracking-[0.18em] text-slate-500">JAPAN</p><h1 className="text-base font-black tracking-tight">Earthquake Monitor</h1></div></div>
-          <div className="flex items-center gap-2"><Link href="/events" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold shadow-sm hover:border-slate-950">Map</Link><Link href="/alerts" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold shadow-sm hover:border-slate-950">Alerts</Link><Link href="/forecasts" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold shadow-sm hover:border-slate-950">Forecasts</Link><Link href="/safety" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold shadow-sm hover:border-slate-950">Safety</Link><Link href="/status" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold shadow-sm hover:border-slate-950">Status</Link><button onClick={() => snapshot.refetch()} className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold shadow-sm hover:border-slate-950" aria-label="Refresh live data"><RefreshCcw size={14} />ပြန်စစ်ရန်</button></div>
+          <div className="flex items-center gap-2"><Link href="/events" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold shadow-sm hover:border-slate-950">Map</Link><Link href="/alerts" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold shadow-sm hover:border-slate-950">Alerts</Link><Link href="/forecasts" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold shadow-sm hover:border-slate-950">Forecasts</Link><Link href="/safety" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold shadow-sm hover:border-slate-950">Safety</Link><Link href="/status" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold shadow-sm hover:border-slate-950">Status</Link><button onClick={() => snapshot.refetch()} disabled={isRefreshing} className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold shadow-sm hover:border-slate-950 disabled:cursor-wait disabled:opacity-70" aria-label={isRefreshing ? "Refreshing live data" : "Refresh live data"}>{isRefreshing ? <LoaderCircle className="animate-spin" size={14} /> : <RefreshCcw size={14} />}{isRefreshing ? "Refresh…" : "ပြန်စစ်ရန်"}</button></div>
         </div>
       </header>
 
@@ -53,9 +54,9 @@ export default function Home() {
           <div className="seismic-hero-grid" aria-hidden="true" />
           <div className="flex flex-wrap items-start justify-between gap-5">
             <div className="relative max-w-2xl"><p className="text-[10px] font-extrabold tracking-[0.18em] text-sky-200">LIVE SEISMIC MONITOR</p><h2 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">Japan earthquake activity ကို စောင့်ကြည့်နေပါသည်</h2><p className="mt-3 text-sm leading-6 text-slate-200">USGS public source မှ အတည်ပြု record များကို အလိုအလျောက် update လုပ်ထားပါသည်။</p></div>
-            <div className="relative seismic-live-telemetry"><p className="text-[10px] font-bold tracking-[0.15em] text-sky-200">DATA STATUS</p><p className="mt-1 flex items-center gap-2 text-sm font-bold"><span className={`seismic-live-dot ${sourceActive ? "seismic-live-dot-active" : ""}`} aria-hidden="true" /><ShieldCheck size={16} className="text-[#c8dded]" />{sourceActive ? "Live data ရရှိနေသည်" : "Update ကို စောင့်နေသည်"}</p></div>
+            <div className="relative seismic-live-telemetry"><p className="text-[10px] font-bold tracking-[0.15em] text-sky-200">{isRefreshing ? "REAL-TIME REFRESH" : "DATA STATUS"}</p><p role="status" aria-live="polite" className="mt-1 flex items-center gap-2 text-sm font-bold"><span className={`seismic-live-dot ${isRefreshing ? "seismic-live-dot-refreshing" : sourceActive ? "seismic-live-dot-active" : ""}`} aria-hidden="true" />{isRefreshing ? <LoaderCircle className="animate-spin text-sky-200" size={16} /> : <ShieldCheck size={16} className="text-[#c8dded]" />}{isRefreshing ? "Live source ကို refresh လုပ်နေသည်…" : sourceActive ? "Live data ရရှိနေသည်" : "Update ကို စောင့်နေသည်"}</p></div>
           </div>
-          <div className="relative mt-6 flex items-center gap-2 text-xs text-slate-300"><Clock3 size={14} />နောက်ဆုံး update: {jstTime(data.collection.lastSuccess)} (Japan time)</div>
+          <div className="relative mt-6 flex items-center gap-2 text-xs text-slate-300"><Clock3 size={14} />{isRefreshing ? "Latest verified data ကို ထိန်းထားပြီး source update ကို စစ်ဆေးနေသည်" : `နောက်ဆုံး update: ${jstTime(data.collection.lastSuccess)} (Japan time)`}</div>
         </section>
 
         <section className="mt-6 grid gap-3 sm:grid-cols-3" aria-label="Recent activity summary"><SummaryCard label="လွန်ခဲ့သော 24 နာရီ" value={activityLabel(summary.events24h)} caption="မှတ်တမ်းတင်ထားသော events" /><SummaryCard label="လွန်ခဲ့သော 7 ရက်" value={activityLabel(summary.events7d)} caption="မှတ်တမ်းတင်ထားသော events" /><SummaryCard label="7 ရက်အတွင်း အမြင့်ဆုံး" value={summary.maxMagnitude7d === null ? "မတွေ့ရှိပါ" : `M${summary.maxMagnitude7d.toFixed(1)}`} caption="verified record များမှ" /></section>
