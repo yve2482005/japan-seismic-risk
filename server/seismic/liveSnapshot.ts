@@ -1,5 +1,5 @@
 import { readRawEarthquakeRows, readSheetRows } from "../googleSheets";
-import { classifyRisk, JAPAN_REGIONS, type JapanRegion, type RegionActivity, type SeismicEvent } from "@shared/seismic";
+import { classifyRisk, JAPAN_REGIONS, type DetectionAlert, type JapanRegion, type RegionActivity, type SeismicEvent } from "@shared/seismic";
 
 const mapPositions: Record<JapanRegion, [number, number]> = {
   Hokkaido: [304, 72], Tohoku: [296, 150], Kanto: [269, 212], Chubu: [222, 218], Kansai: [178, 246], Chugoku: [126, 251], Shikoku: [170, 289], Kyushu: [85, 303], Okinawa: [34, 360],
@@ -37,6 +37,17 @@ function asEvent(row: LiveRow): SeismicEvent | null {
   return { eventId: row.event_id, region: row.region, locality: row.nearest_city || "Source locality not supplied", latitude, longitude, magnitude, depthKm: numberOrNull(row.depth_km), originTimeUtc: origin.toISOString(), source: row.source, sourceUrl: row.source_url, provenance: "verified" };
 }
 
+function asAlert(row: LiveRow): DetectionAlert | null {
+  const origin = dateOrNull(row.origin_time_utc);
+  const detected = dateOrNull(row.detected_at);
+  const thresholdMagnitude = numberOrNull(row.threshold_magnitude);
+  const eventMagnitude = numberOrNull(row.event_magnitude);
+  if (!row.alert_id || row.alert_type !== "earthquake_detection_not_prediction" || !origin || !detected || thresholdMagnitude === null || eventMagnitude === null || !isRegion(row.region)) return null;
+  if (!row.source.startsWith(USGS_SOURCE_PREFIX)) return null;
+  if (row.severity !== "normal" && row.severity !== "high" && row.severity !== "critical") return null;
+  return { alertId: row.alert_id, eventId: row.event_id, severity: row.severity, thresholdMagnitude, eventMagnitude, region: row.region, locality: row.locality || "Source locality not supplied", latitude: numberOrNull(row.latitude), longitude: numberOrNull(row.longitude), depthKm: numberOrNull(row.depth_km), originTimeUtc: origin.toISOString(), source: row.source, sourceUrl: row.source_url, reason: row.reason || "Source threshold met.", detectedAt: detected.toISOString(), deliveryStatus: row.delivery_status || "in_app_history_created" };
+}
+
 export function buildLiveSnapshot(rows: LiveRow[], now = new Date(), predictionRows: LiveRow[] = [], productionModelVersion: string | null = null) {
   const events = rows.map(asEvent).filter((event): event is SeismicEvent => event !== null).sort((a, b) => Date.parse(b.originTimeUtc) - Date.parse(a.originTimeUtc));
   const nowMs = now.getTime();
@@ -65,8 +76,56 @@ export function liveUsgsRows(rows: LiveRow[]) {
   return rows.filter(row => row.source.startsWith(USGS_SOURCE_PREFIX));
 }
 
+export function sourceAwareAlerts(rows: LiveRow[]) {
+  const byId = new Map<string, DetectionAlert>();
+  for (const row of rows) {
+    const alert = asAlert(row);
+    if (alert && !byId.has(alert.alertId)) byId.set(alert.alertId, alert);
+  }
+  return Array.from(byId.values()).sort((left, right) => Date.parse(right.detectedAt) - Date.parse(left.detectedAt));
+}
+
+function parseLogContext(value: string | undefined) {
+  try { return value ? JSON.parse(value) as Record<string, unknown> : {}; } catch { return {}; }
+}
+
+function finiteNumber(value: unknown) { return typeof value === "number" && Number.isFinite(value) ? value : null; }
+
+export function buildSystemHealth(snapshot: ReturnType<typeof buildLiveSnapshot>, systemRows: LiveRow[], alerts: DetectionAlert[], now = new Date()) {
+  const latestCollector = systemRows.filter(row => row.component === "collector").sort((left, right) => Date.parse(right.timestamp_utc ?? "") - Date.parse(left.timestamp_utc ?? ""))[0];
+  const collectorContext = parseLogContext(latestCollector?.context_json);
+  const latestCollection = snapshot.latestCollection ? new Date(snapshot.latestCollection) : null;
+  const freshnessMinutes = latestCollection && Number.isFinite(latestCollection.getTime()) ? Math.max(0, Math.floor((now.getTime() - latestCollection.getTime()) / 60000)) : null;
+  const sourceStatus = freshnessMinutes === null ? "unavailable" : freshnessMinutes <= 120 ? "active" : freshnessMinutes <= 180 ? "delayed" : "stale";
+  return {
+    source: { status: sourceStatus, lastCollection: snapshot.latestCollection, freshnessMinutes, acceptedEvents: snapshot.events.length, lastRunMessage: latestCollector?.message ?? "No collector log available" },
+    quality: { invalidRejected: finiteNumber(collectorContext.invalid_rejected), outsideEnvelope: finiteNumber(collectorContext.outside_envelope), newEventsConsidered: finiteNumber(collectorContext.new_events_considered_for_alerts) },
+    alerts: { historyCount: alerts.length, latestDetectedAt: alerts[0]?.detectedAt ?? null, status: "in_app_history_only" as const },
+    notifications: { status: "permission_required_background_sender_unconfigured" as const, detail: "Browser permission can be requested by the user; no server-side background push sender is configured." },
+  };
+}
+
+export function visibleUsgsModelHistory(rows: LiveRow[]) {
+  return rows.filter(row => !row.dataset_version.startsWith("jma-historical-")).sort((left, right) => Date.parse(right.trained_at ?? "") - Date.parse(left.trained_at ?? "")).slice(0, 20).map(row => {
+    let metrics: Record<string, unknown> | null = null;
+    try { metrics = row.metrics_json ? JSON.parse(row.metrics_json) as Record<string, unknown> : null; } catch { metrics = null; }
+    const calibration = metrics && typeof metrics.calibration === "object" && metrics.calibration !== null ? metrics.calibration as Record<string, unknown> : {};
+    return { modelVersion: row.model_version || "Unknown", status: row.status || "candidate", target: row.target_definition || "Unknown target", datasetVersion: row.dataset_version || "usgs-live-sheet-v1", trainedAt: row.trained_at || null, metrics: { prAuc: finiteNumber(metrics?.pr_auc), recall: finiteNumber(metrics?.recall), brierScore: finiteNumber(metrics?.brier_score), expectedCalibrationError: finiteNumber(calibration.expected_calibration_error) } };
+  });
+}
+
+export function closedProductionForecastSummary(rows: LiveRow[], metricRows: LiveRow[]) {
+  const historicallyProduction = new Set(metricRows.filter(row => row.dataset_version === "usgs-live-sheet-v1" && row.status === "production").map(row => row.model_version));
+  const closed = rows.filter(row => row.dataset_version === "usgs-live-sheet-v1" && row.outcome_status === "closed" && historicallyProduction.has(row.model_version)).map(row => ({ probability: numberOrNull(row.prediction_probability), actual: numberOrNull(row.actual_label), closedAt: row.closed_at || null })).filter((row): row is { probability: number; actual: number; closedAt: string | null } => row.probability !== null && row.actual !== null && (row.actual === 0 || row.actual === 1));
+  if (!closed.length) return { status: "unavailable" as const, closedCount: 0, positives: 0, meanProbability: null, brierScore: null, latestClosedAt: null };
+  const meanProbability = closed.reduce((sum, row) => sum + row.probability, 0) / closed.length;
+  const brierScore = closed.reduce((sum, row) => sum + (row.probability - row.actual) ** 2, 0) / closed.length;
+  const latestClosedAt = closed.map(row => row.closedAt).filter((value): value is string => Boolean(value)).sort((left, right) => Date.parse(right) - Date.parse(left))[0] ?? null;
+  return { status: "available" as const, closedCount: closed.length, positives: closed.filter(row => row.actual === 1).length, meanProbability: Number(meanProbability.toFixed(4)), brierScore: Number(brierScore.toFixed(4)), latestClosedAt };
+}
+
 export async function getLiveSnapshot() {
-  const [dataset, metricDataset, predictionDataset] = await Promise.all([readRawEarthquakeRows(), readSheetRows("MODEL_METRICS"), readSheetRows("PREDICTIONS")]);
+  const [dataset, metricDataset, predictionDataset, alertDataset, systemLogDataset, forecastOutcomeDataset] = await Promise.all([readRawEarthquakeRows(), readSheetRows("MODEL_METRICS"), readSheetRows("PREDICTIONS"), readSheetRows("ALERTS"), readSheetRows("SYSTEM_LOG"), readSheetRows("FORECAST_OUTCOMES")]);
   const effectiveMetrics = Object.values(metricDataset.rows.reduce<Record<string, LiveRow>>((current, row) => {
     const existing = current[row.model_version];
     if (row.model_version && (!existing || Date.parse(row.trained_at ?? "") >= Date.parse(existing.trained_at ?? ""))) current[row.model_version] = row;
@@ -79,6 +138,7 @@ export async function getLiveSnapshot() {
   let metricReport: Record<string, unknown> | null = null;
   try { metricReport = latestMetric?.metrics_json ? JSON.parse(latestMetric.metrics_json) as Record<string, unknown> : null; } catch { metricReport = null; }
   const numberMetric = (key: string) => typeof metricReport?.[key] === "number" ? metricReport[key] as number : null;
+  const alerts = sourceAwareAlerts(alertDataset.rows);
   return {
     mode: "live" as const,
     generatedAt: new Date().toISOString(),
@@ -86,5 +146,9 @@ export async function getLiveSnapshot() {
     model: latestMetric ? { status: latestMetric.status || "candidate", version: latestMetric.model_version || null, target: latestMetric.target_definition || "M4+ in the next 24 hours", accuracy: numberMetric("accuracy"), precision: numberMetric("precision"), recall: numberMetric("recall"), prAuc: numberMetric("pr_auc"), brierScore: numberMetric("brier_score"), calibration: productionMetric ? "Real chronological test metrics are sourced from the latest Google Sheets model report. Regional probabilities use only rows generated by a promoted production model." : "Real chronological test metrics are sourced from the latest Google Sheets model report. Probabilities remain unavailable until a promoted model is present." } : { status: "awaiting_validated_history" as const, version: null, target: "M4+ in the next 24 hours", accuracy: null, precision: null, recall: null, prAuc: null, brierScore: null, calibration: "Probabilities remain unavailable until a candidate model is trained and passes chronological evaluation." },
     events: snapshot.events,
     regions: snapshot.regions,
+    alerts,
+    system: buildSystemHealth(snapshot, systemLogDataset.rows, alerts),
+    modelHistory: visibleUsgsModelHistory(effectiveMetrics),
+    forecastOutcomes: closedProductionForecastSummary(forecastOutcomeDataset.rows, metricDataset.rows),
   };
 }

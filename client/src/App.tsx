@@ -4,13 +4,23 @@ import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import Alerts from "./pages/Alerts";
+import EventExplorer from "./pages/EventExplorer";
+import Forecasts from "./pages/Forecasts";
 import Home from "./pages/Home";
+import Safety from "./pages/Safety";
+import SystemHealth from "./pages/SystemHealth";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
   return (
     <Switch>
       <Route path={"/"} component={Home} />
+      <Route path={"/alerts"} component={Alerts} />
+      <Route path={"/events"} component={EventExplorer} />
+      <Route path={"/forecasts"} component={Forecasts} />
+      <Route path={"/safety"} component={Safety} />
+      <Route path={"/status"} component={SystemHealth} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />

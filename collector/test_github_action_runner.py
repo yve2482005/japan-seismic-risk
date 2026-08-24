@@ -2,7 +2,7 @@ import json
 import unittest
 from unittest.mock import patch
 
-from collector.github_action_runner import USGS_LIVE_TAB, collect, materialize_features, normalized_records, positive_label_count, production_prediction_rows, promote_rows, quality_gate, risk_level, select_production_candidate
+from collector.github_action_runner import USGS_LIVE_TAB, USGS_SOURCE, active_production_rows, alert_definition, closed_production_forecast_outcomes, collect, materialize_features, normalized_records, positive_label_count, production_prediction_rows, promote_rows, quality_gate, risk_level, select_production_candidate, source_aware_alert_records
 
 
 class GitHubActionRunnerTests(unittest.TestCase):
@@ -47,14 +47,71 @@ class GitHubActionRunnerTests(unittest.TestCase):
     def test_no_probability_rows_exist_without_an_actual_production_report(self):
         self.assertEqual(production_prediction_rows([], [], "2026-08-24T00:00:00Z"), [])
 
+    def test_daily_scoring_reuses_only_a_retained_usgs_production_model(self):
+        existing = [
+            {"model_version": "usgs-production-v1", "dataset_version": "usgs-live-sheet-v1", "status": "production", "trained_at": "2026-08-24T00:00:00Z"},
+            {"model_version": "jma-production-like-row", "dataset_version": "jma-historical-bulletin-v1", "status": "production", "trained_at": "2026-08-24T00:00:00Z"},
+        ]
+        self.assertEqual(
+            [row["model_version"] for row in active_production_rows(existing, [{"model_version": "usgs-candidate-v2", "dataset_version": "usgs-live-sheet-v1", "status": "candidate", "trained_at": "2026-08-25T00:00:00Z"}], "usgs-live-sheet-v1")],
+            ["usgs-production-v1"],
+        )
+
+    def test_retired_model_cannot_be_reused_for_daily_scoring(self):
+        history = [
+            {"model_version": "usgs-production-v1", "dataset_version": "usgs-live-sheet-v1", "status": "production", "trained_at": "2026-08-24T00:00:00Z"},
+            {"model_version": "usgs-production-v1", "dataset_version": "usgs-live-sheet-v1", "status": "retired", "trained_at": "2026-08-25T00:00:00Z"},
+        ]
+        self.assertEqual(active_production_rows(history, [], "usgs-live-sheet-v1"), [])
+
     def test_probability_categories_are_derived_from_probability_values(self):
         self.assertEqual([risk_level(value) for value in (0.01, 0.06, 0.16, 0.31)], ["LOW", "MODERATE", "ELEVATED", "HIGH"])
 
     def test_usgs_collection_targets_the_dedicated_live_tab(self):
         csv_text = "time,updated,latitude,longitude,depth,mag,id,url,magType,place,type\n2026-08-24T00:00:00Z,2026-08-24T00:00:01Z,32.2,132.0,10,3.1,us-test,https://example.test,mb,Kyushu,earthquake\n"
-        with patch("collector.github_action_runner.download_csv", return_value=csv_text), patch("collector.github_action_runner.upsert_raw_records", return_value={"appended": 1, "updated": 0, "unchanged": 0}) as upsert, patch("collector.github_action_runner.append_system_log"):
+        with patch("collector.github_action_runner.download_csv", return_value=csv_text), patch("collector.github_action_runner.read_tab_records", return_value=[]), patch("collector.github_action_runner.upsert_raw_records", return_value={"appended": 1, "updated": 0, "unchanged": 0}) as upsert, patch("collector.github_action_runner.append_unique_alert_records", return_value={"created": 0, "duplicates_skipped": 0}), patch("collector.github_action_runner.append_system_log"):
             collect("sheet-id")
         self.assertEqual(upsert.call_args.kwargs["tab"], USGS_LIVE_TAB)
+
+    def test_detection_alert_thresholds_follow_the_configured_default_levels(self):
+        self.assertEqual(alert_definition(4.0), ("normal", "LEVEL_1", 4.0))
+        self.assertEqual(alert_definition(5.0), ("high", "LEVEL_2", 5.0))
+        self.assertEqual(alert_definition(6.0), ("critical", "LEVEL_3", 6.0))
+        self.assertIsNone(alert_definition(3.9))
+
+    def test_detection_alerts_are_fresh_usgs_only_and_are_not_forecasts(self):
+        now = __import__("datetime").datetime(2026, 8, 24, 12, tzinfo=__import__("datetime").timezone.utc)
+        records = [
+            {"event_id": "usgs-m5", "source": USGS_SOURCE, "origin_time_utc": "2026-08-24T10:00:00Z", "magnitude": 5.2, "region": "Hokkaido", "nearest_city": "Hokkaido", "depth_km": 34, "source_url": "https://example.test/usgs-m5"},
+            {"event_id": "jma-historical", "source": "Japan Meteorological Agency", "origin_time_utc": "2026-08-24T10:00:00Z", "magnitude": 6.1, "region": "Hokkaido"},
+            {"event_id": "old-usgs", "source": USGS_SOURCE, "origin_time_utc": "2026-08-20T10:00:00Z", "magnitude": 6.1, "region": "Hokkaido"},
+        ]
+        alerts = source_aware_alert_records(records, now)
+        self.assertEqual(len(alerts), 1)
+        self.assertEqual(alerts[0]["event_id"], "usgs-m5")
+        self.assertEqual(alerts[0]["alert_type"], "earthquake_detection_not_prediction")
+        self.assertEqual(alerts[0]["severity"], "high")
+
+    def test_forecast_outcomes_require_a_closed_window_and_genuine_usgs_production_model(self):
+        now = __import__("datetime").datetime(2026, 8, 26, tzinfo=__import__("datetime").timezone.utc)
+        production = [{"model_version": "usgs-production", "dataset_version": "usgs-live-sheet-v1", "status": "production"}]
+        predictions = [
+            {"prediction_id": "closed", "model_version": "usgs-production", "region": "Kyushu", "target_definition": "M4_NEXT_24H", "probability": 0.2, "generated_at": "2026-08-24T00:00:00Z"},
+            {"prediction_id": "open", "model_version": "usgs-production", "region": "Kyushu", "target_definition": "M4_NEXT_24H", "probability": 0.2, "generated_at": "2026-08-26T00:00:00Z"},
+            {"prediction_id": "candidate", "model_version": "candidate", "region": "Kyushu", "target_definition": "M4_NEXT_24H", "probability": 0.2, "generated_at": "2026-08-24T00:00:00Z"},
+        ]
+        records = [{"event_id": "actual-m4", "region": "Kyushu", "origin_time_utc": "2026-08-24T12:00:00Z", "magnitude": 4.1}]
+        outcomes = closed_production_forecast_outcomes(predictions, production, records, now)
+        self.assertEqual(len(outcomes), 1)
+        self.assertEqual(outcomes[0]["outcome_id"], "closed:closed")
+        self.assertEqual(outcomes[0]["actual_label"], 1)
+
+    def test_candidate_only_or_jma_only_model_history_cannot_materialize_forecast_outcomes(self):
+        now = __import__("datetime").datetime(2026, 8, 26, tzinfo=__import__("datetime").timezone.utc)
+        prediction = [{"prediction_id": "candidate", "model_version": "candidate", "region": "Kyushu", "target_definition": "M4_NEXT_24H", "probability": 0.2, "generated_at": "2026-08-24T00:00:00Z"}]
+        record = [{"event_id": "actual", "region": "Kyushu", "origin_time_utc": "2026-08-24T12:00:00Z", "magnitude": 4.1}]
+        self.assertEqual(closed_production_forecast_outcomes(prediction, [{"model_version": "candidate", "dataset_version": "usgs-live-sheet-v1", "status": "candidate"}], record, now), [])
+        self.assertEqual(closed_production_forecast_outcomes(prediction, [{"model_version": "jma-only", "dataset_version": "jma-historical-bulletin-v1", "status": "production"}], record, now), [])
 
     def test_selects_only_the_best_calibrated_candidate_for_production(self):
         def candidate(pr_auc: float, brier: float, ece: float):

@@ -3,14 +3,16 @@ import { and, desc, eq } from "drizzle-orm";
 import { systemLogs } from "../drizzle/schema";
 import { getDb } from "./db";
 
-export const LIVE_SHEET_TABS = ["RAW_EARTHQUAKES", "USGS_LIVE_EARTHQUAKES", "FEATURES", "TRAINING_DATA", "PREDICTIONS", "MODEL_METRICS", "SYSTEM_LOG"] as const;
+export const LIVE_SHEET_TABS = ["RAW_EARTHQUAKES", "USGS_LIVE_EARTHQUAKES", "ALERTS", "FEATURES", "TRAINING_DATA", "PREDICTIONS", "FORECAST_OUTCOMES", "MODEL_METRICS", "SYSTEM_LOG"] as const;
 export const RAW_HEADERS = ["event_id", "source", "source_url", "origin_time_utc", "local_time_japan", "latitude", "longitude", "depth_km", "magnitude", "magnitude_type", "region", "prefecture", "nearest_city", "event_type", "collection_time", "data_quality", "duplicate_status", "training_eligible", "cross_source_duplicate_status", "raw_value", "normalized_value", "source_updated_epoch_ms"] as const;
 const TAB_HEADERS: Record<(typeof LIVE_SHEET_TABS)[number], readonly string[]> = {
   RAW_EARTHQUAKES: RAW_HEADERS,
   USGS_LIVE_EARTHQUAKES: RAW_HEADERS,
+  ALERTS: ["alert_id", "event_id", "alert_type", "severity", "threshold_magnitude", "event_magnitude", "region", "locality", "latitude", "longitude", "depth_km", "origin_time_utc", "source", "source_url", "reason", "detected_at", "delivery_status"],
   FEATURES: ["event_id", "feature_as_of_utc", "region", "target_name", "features_json", "created_at"],
   TRAINING_DATA: ["event_id", "target_name", "label", "feature_version", "dataset_version", "created_at"],
   PREDICTIONS: ["prediction_id", "model_version", "region", "target_definition", "probability", "risk_level", "generated_at"],
+  FORECAST_OUTCOMES: ["outcome_id", "prediction_id", "model_version", "dataset_version", "region", "target_definition", "prediction_probability", "generated_at", "window_ends_at", "outcome_status", "actual_label", "matched_event_id", "closed_at"],
   MODEL_METRICS: ["model_version", "algorithm", "target_definition", "dataset_version", "metrics_json", "calibration_json", "status", "trained_at"],
   SYSTEM_LOG: ["timestamp_utc", "component", "severity", "message", "context_json"],
 };

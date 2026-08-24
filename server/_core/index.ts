@@ -8,6 +8,7 @@ import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { deliverPendingPushAlerts, verifyWorkflowToken } from "../pushDelivery";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -36,6 +37,17 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   registerStorageProxy(app);
   registerOAuthRoutes(app);
+  app.post("/api/internal/push-delivery", async (req, res) => {
+    const token = req.header("authorization")?.replace(/^Bearer\s+/i, "");
+    if (!token) return res.status(401).json({ error: "Missing workflow token." });
+    try {
+      await verifyWorkflowToken(token);
+      return res.json(await deliverPendingPushAlerts());
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Push delivery failed.";
+      return res.status(message === "Untrusted workflow identity." ? 403 : 500).json({ error: message });
+    }
+  });
   // tRPC API
   app.use(
     "/api/trpc",

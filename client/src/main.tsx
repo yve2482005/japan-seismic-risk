@@ -8,6 +8,10 @@ import App from "./App";
 import { startLogin } from "./const";
 import "./index.css";
 
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => { void navigator.serviceWorker.register("/service-worker.js").catch(() => undefined); });
+}
+
 const queryClient = new QueryClient();
 
 const redirectToLoginIfUnauthorized = (error: unknown) => {

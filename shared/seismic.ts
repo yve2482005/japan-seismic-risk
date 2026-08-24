@@ -25,6 +25,25 @@ export type SeismicEvent = {
   provenance: "demo" | "verified";
 };
 
+export type DetectionAlert = {
+  alertId: string;
+  eventId: string;
+  severity: "normal" | "high" | "critical";
+  thresholdMagnitude: number;
+  eventMagnitude: number;
+  region: JapanRegion;
+  locality: string;
+  latitude: number | null;
+  longitude: number | null;
+  depthKm: number | null;
+  originTimeUtc: string;
+  source: string;
+  sourceUrl: string;
+  reason: string;
+  detectedAt: string;
+  deliveryStatus: string;
+};
+
 export type RegionActivity = {
   region: JapanRegion;
   probabilityM4_24h: number | null;

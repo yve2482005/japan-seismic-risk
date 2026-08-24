@@ -15,6 +15,20 @@
       "when": 1787495930317,
       "tag": "0001_sloppy_nemesis",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1787545223900,
+      "tag": "0002_slim_speedball",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1787545282886,
+      "tag": "0003_military_layla_miller",
+      "breakpoints": true
     }
   ]
 }

@@ -4,7 +4,7 @@ import os
 import unittest
 from unittest.mock import patch
 
-from collector.google_sheets_sink import service_account_info, upsert_raw_records
+from collector.google_sheets_sink import append_unique_alert_records, append_unique_forecast_outcomes, service_account_info, upsert_raw_records
 
 
 class GoogleSheetsSecretTests(unittest.TestCase):
@@ -83,3 +83,20 @@ class GoogleSheetsBatchTests(unittest.TestCase):
             result = upsert_raw_records("sheet-id", records)
         self.assertEqual(result["appended"], 801)
         self.assertEqual([len(call["body"]["values"]) for call in service.values_api.append_calls], [400, 400, 1])
+
+    def test_alert_history_skips_existing_deterministic_alert_ids(self):
+        service = _FakeService()
+        service.values_api.get = lambda **_kwargs: _Request({"values": [["alert_id"], ["policy:existing"]]})
+        records = [{"alert_id": "policy:existing"}, {"alert_id": "policy:new", "event_id": "event-1"}]
+        with patch("collector.google_sheets_sink.sheet_service", return_value=service):
+            result = append_unique_alert_records("sheet-id", records)
+        self.assertEqual(result, {"created": 1, "duplicates_skipped": 1})
+        self.assertEqual(len(service.values_api.append_calls), 1)
+
+    def test_forecast_outcomes_skip_existing_deterministic_outcome_ids(self):
+        service = _FakeService()
+        service.values_api.get = lambda **_kwargs: _Request({"values": [["outcome_id"], ["prediction:closed"]]})
+        records = [{"outcome_id": "prediction:closed"}, {"outcome_id": "prediction:new", "prediction_id": "prediction"}]
+        with patch("collector.google_sheets_sink.sheet_service", return_value=service):
+            result = append_unique_forecast_outcomes("sheet-id", records)
+        self.assertEqual(result, {"created": 1, "duplicates_skipped": 1})

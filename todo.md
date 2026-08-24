@@ -75,3 +75,38 @@
 - [x] Verify the JMA-only quality gate and chronological candidate evaluation without production promotion, live probabilities, or a change to the hourly USGS collector.
 - [x] Prepare production-only USGS score generation that writes probability rows only after a genuinely promoted USGS model version exists.
 - [x] Isolate USGS live rows in a dedicated Sheet tab and verify the dashboard remains responsive without reading the large JMA historical archive.
+- [x] Estimate when the live USGS-only dataset may reach 500 records using observed accumulation, without altering data sources or fabricating records.
+- [x] Report the evidence-based USGS 500-record estimate in Burmese, including its uncertainty and scientific limitations.
+- [x] Record the 24 August 2026 USGS-only 500-record operational estimate and its limitations in the project documentation.
+- [x] Clarify and, only after confirmation, apply the requested daily update cadence without weakening the USGS-only production-quality gates.
+- [x] Verify daily USGS-only quality-gated training and daily production-only scoring orchestration, keeping probabilities unavailable until genuine promotion.
+- [x] Assess additional permitted public earthquake sources for faster accumulation, including access terms, overlap, provenance, source separation, and model-safety implications; do not activate without explicit approval.
+- [ ] Obtain explicit approval before any bounded additional JMA static-archive import; preserve source separation and do not change the USGS live pipeline.
+- [x] Assess the feasibility of a source-aware JMA–USGS hybrid model, including catalog harmonization, duplicate treatment, chronology, held-out evaluation, and strict limits on live use; do not implement without approval.
+- [ ] Obtain explicit approval before building any research-only JMA–USGS hybrid catalog experiment; keep it separate from live USGS production prediction.
+- [x] Measure existing JMA-versus-USGS temporal overlap and source-aware unique-event coverage without merging records into the USGS live model or production gate.
+- [x] Simplify the public dashboard to show only user-understandable live activity, source status, and plain-language safety information while preserving responsive behavior.
+- [x] Apply the feasible $0 dashboard requirements from the user-provided attachment while preserving live data provenance and prediction-safety safeguards; background push remains explicitly unavailable without a sender.
+- [x] Audit the existing workflows, Sheet schema, server snapshot, client routes, and tests against the attachment requirements without disrupting working collection or training.
+- [x] Define a $0-safe alert and notification scope that distinguishes in-app alerts from browser/OS push capabilities and does not claim silent/DND bypass.
+- [x] Add source-aware earthquake alert records, duplicate protection, thresholds, and safe alert history without modifying historical JMA rows or fabricating events.
+- [x] Add user-controlled region preferences and alert threshold preferences for in-app alert filtering.
+- [x] Implement opt-in geolocation with clear privacy copy, no persistent precise-location storage, and approximate event-distance display when permission is granted.
+- [x] Add a browser-notification permission foundation with clear platform limitations, preserving in-app alerts when permission is unavailable; background push remains explicitly unavailable without a sender.
+- [x] Add accessible live-map and event-history views using live USGS observations, filters, and source attribution without inventing emergency locations.
+- [x] Add explicit loading, error, and retry states to the live event explorer so unavailable data is never presented as an empty event history.
+- [x] Add a safety and offline emergency-guide experience that separates verified official information, earthquake detection, and model forecasts.
+- [x] Add system-health, data-quality, alert, source, and model-status visibility with truthful unavailable/error states.
+- [x] Preserve source-separated forecasting and USGS-only model history without creating predictions before genuine promotion.
+- [x] Implement durable forecast-versus-actual tracking for closed production USGS prediction windows, excluding all JMA rows.
+- [x] Expose truthful forecast-versus-actual summaries with explicit unavailable/loading/error states when no closed production forecast windows exist.
+- [x] Add regression coverage proving that forecast-versus-actual results cannot appear before genuine USGS production promotion.
+- [x] Add direct regression tests proving candidate-only, JMA-only, and no-production histories cannot materialize or expose forecast-versus-actual results.
+- [x] Validate the extended system with unit tests, responsive visual checks, live collection workflow verification, and a secret audit.
+- [x] Confirm the accuracy-first operating path: preserve hourly USGS-only live collection, daily quality gates, and source separation; do not lower thresholds or mix JMA into live production forecasting.
+- [x] Add user-testable, magnitude-differentiated in-app notification sounds with explicit foreground, browser-permission, and silent/DND limitations.
+- [x] Compare and obtain user selection for a secure app-closed background notification delivery path that preserves the $0 constraint and explicit device-control limits.
+- [x] Add opt-in push subscriptions, authenticated private storage, user preference synchronization, and unsubscribe controls.
+- [ ] Publish the GitHub OIDC-authenticated workflow step and sealed server-side VAPID sender so qualifying new USGS alerts can be delivered without a long-lived workflow secret.
+- [x] Add delivery status, invalid-subscription cleanup, and source/magnitude/region safeguards without exposing subscription endpoints.
+- [ ] Verify one end-to-end background notification delivery on an opted-in user device after the updated workflow is published.

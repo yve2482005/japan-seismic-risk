@@ -1,58 +1,113 @@
-import { RiskMap } from "@/components/RiskMap";
 import { trpc } from "@/lib/trpc";
-import type { JapanRegion, RiskLevel } from "@shared/seismic";
-import { Activity, AlertTriangle, BarChart3, Database, Gauge, RefreshCcw, ShieldCheck, Waves } from "lucide-react";
-import { useMemo, useState } from "react";
+import type { RegionActivity } from "@shared/seismic";
+import { AlertTriangle, Clock3, RefreshCcw, ShieldCheck, Waves } from "lucide-react";
+import { useMemo } from "react";
+import { Link } from "wouter";
+import { activityLabel, modelStatusCopy } from "./dashboardCopy";
 
-const riskStyle: Record<RiskLevel | "UNAVAILABLE", string> = {
-  LOW: "bg-[#c8dded] text-slate-900",
-  MODERATE: "bg-[#f7c7c2] text-slate-900",
-  ELEVATED: "bg-[#ef8e85] text-slate-950",
-  HIGH: "bg-[#dc5d54] text-white",
-  UNAVAILABLE: "bg-slate-200 text-slate-700",
-};
-
-function probability(value: number | null) { return value === null ? "Not available" : `${value.toFixed(1)}%`; }
-function localTime(utc: string) { return new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Tokyo", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(utc)); }
-function metricValue(value: number | null | undefined, format: "percent" | "decimal") { return typeof value === "number" ? format === "percent" ? `${(value * 100).toFixed(1)}%` : value.toFixed(3) : "Pending"; }
-
-export default function Home() {
-  const [showOperations, setShowOperations] = useState(false);
-  const [selectedRegion, setSelectedRegion] = useState<JapanRegion>("Kyushu");
-  const snapshot = trpc.seismic.snapshot.useQuery();
-  const data = snapshot.data;
-  const selected = useMemo(() => data?.regions.find(region => region.region === selectedRegion), [data?.regions, selectedRegion]);
-
-  if (snapshot.isLoading || !data || !selected) return <main className="min-h-screen bg-[#f3f6f8] px-6 py-16 text-slate-700">Loading live source status…</main>;
-
-  return <main className="min-h-screen overflow-x-hidden bg-[#f3f6f8] text-[#111111] selection:bg-[#f7c7c2]">
-    <div className="page-accent accent-blue" aria-hidden="true" /><div className="page-accent accent-pink" aria-hidden="true" />
-    <header className="relative mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 pb-8 pt-6 sm:px-8 lg:px-10">
-      <div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-2xl bg-[#111111] text-white"><Waves size={19} /></span><span><span className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Japan</span><span className="block text-base font-bold tracking-tight">Seismic monitor</span></span></div>
-      <div className="hidden rounded-full border border-slate-200 bg-white/70 p-1 md:flex"><button className="rounded-full bg-[#111111] px-4 py-2 text-xs font-semibold text-white">Overview</button><button onClick={() => setShowOperations(true)} className="rounded-full px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100">Operations</button></div>
-      <button onClick={() => snapshot.refetch()} className="flex h-10 items-center gap-2 rounded-full border border-slate-300 bg-white px-4 text-xs font-semibold hover:border-slate-900" aria-label="Refresh live dashboard"><RefreshCcw size={14} />Refresh</button>
-    </header>
-
-    <section className="relative mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#b9d2e2] bg-[#eff7fb] px-4 py-3"><div className="flex items-start gap-3"><span className="mt-0.5 grid h-7 w-7 place-items-center rounded-full bg-[#c8dded]"><AlertTriangle size={14} /></span><p className="max-w-4xl text-xs leading-relaxed text-slate-700"><strong className="font-bold text-slate-900">Live source configured.</strong> Verified rows appear after the public GitHub Actions workflow completes its first approved USGS public-CSV run. This dashboard provides probabilistic estimates only; it is not an official warning system and cannot predict an earthquake’s exact time, location, or magnitude.</p></div><span className="rounded-full border border-[#b9d2e2] bg-white px-2.5 py-1 text-[10px] font-bold tracking-[0.16em] text-[#35657f]">LIVE PIPELINE</span></div>
-
-      <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-end"><div className="pb-2"><p className="eyebrow">ATTRIBUTED ACTIVITY MONITORING</p><h1 className="mt-3 max-w-3xl text-4xl font-black leading-[0.96] tracking-[-0.055em] sm:text-6xl">Seismic context,<br /><span className="text-slate-500">without false certainty.</span></h1><p className="mt-5 max-w-2xl text-sm leading-6 text-slate-600">Regional activity is calculated from verified rows in the live dataset. Probability cards remain unavailable until a model is trained, calibrated, and chronologically evaluated.</p></div><div className="rounded-[28px] bg-[#111111] p-5 text-white shadow-[0_18px_50px_rgba(17,17,17,0.12)] sm:p-6"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-bold tracking-[0.2em] text-slate-400">COLLECTION STATUS</p><p className="mt-2 text-xl font-bold">{data.collection.status === "active" ? "Live source active" : "Awaiting scheduled run"}</p></div><span className="grid h-9 w-9 place-items-center rounded-full bg-white/10"><ShieldCheck size={18} /></span></div><p className="mt-3 text-sm leading-5 text-slate-300">{data.collection.status === "active" ? `${data.collection.recordsAccepted} verified rows currently loaded from the attributed public download.` : "The live Google Sheet is initialized. Run the public GitHub Actions collection workflow once to import the first source records."}</p><button onClick={() => setShowOperations(true)} className="mt-5 text-xs font-bold text-[#c8dded] hover:text-white">Open run instructions</button></div></div>
-
-      <section className="mt-10 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Live activity and model cards">{[["M4+ / 24h", probability(selected.probabilityM4_24h), selected.risk], ["M5+ / 7d", probability(selected.probabilityM5_7d), selected.risk], ["24h events", String(selected.events24h), "neutral"], ["7d maximum", selected.maxMagnitude7d === null ? "—" : `M${selected.maxMagnitude7d.toFixed(1)}`, "neutral"]].map(([label, value, status]) => <article key={label} className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm"><p className="text-[10px] font-bold tracking-[0.16em] text-slate-500">{label}</p><div className="mt-3 flex items-end justify-between gap-2"><p className="text-2xl font-black tracking-[-0.05em]">{value}</p>{status === "neutral" ? <span className="text-xs text-slate-500">verified activity</span> : <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${riskStyle[status as RiskLevel | "UNAVAILABLE"]}`}>{status}</span>}</div></article>)}</section>
-    </section>
-
-    <section className="relative mx-auto mt-12 max-w-7xl px-5 pb-16 sm:px-8 lg:px-10"><div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]"><article className="panel p-5 sm:p-6"><div><p className="eyebrow">REGIONAL ACTIVITY</p><h2 className="mt-2 text-2xl font-black tracking-[-0.04em]">Japan, region by region</h2></div><RiskMap regions={data.regions} selected={selectedRegion} onSelect={setSelectedRegion} /></article><article className="panel flex flex-col p-5 sm:p-6"><div className="flex items-start justify-between gap-3"><div><p className="eyebrow">FOCUS REGION</p><h2 className="mt-2 text-2xl font-black tracking-[-0.04em]">{selected.region}</h2></div><span className={`rounded-full px-3 py-1.5 text-xs font-bold ${riskStyle[selected.risk]}`}>{selected.risk}</span></div><div className="mt-7 grid grid-cols-2 gap-3"><div className="rounded-2xl bg-[#f0f5f8] p-4"><p className="text-[10px] font-bold tracking-[0.15em] text-slate-500">M4+ / NEXT 24H</p><p className="mt-2 text-xl font-black">{probability(selected.probabilityM4_24h)}</p></div><div className="rounded-2xl bg-[#fff1ef] p-4"><p className="text-[10px] font-bold tracking-[0.15em] text-slate-500">M5+ / NEXT 7D</p><p className="mt-2 text-xl font-black">{probability(selected.probabilityM5_7d)}</p></div></div><dl className="mt-6 divide-y divide-slate-100 text-sm"><div className="flex justify-between py-3"><dt className="text-slate-500">Activity trend</dt><dd className="font-bold capitalize">{selected.trend}</dd></div><div className="flex justify-between py-3"><dt className="text-slate-500">Events in 7 days</dt><dd className="font-bold">{selected.events7d}</dd></div><div className="flex justify-between py-3"><dt className="text-slate-500">Mean depth</dt><dd className="font-bold">{selected.meanDepthKm ?? "—"} km</dd></div></dl><p className="mt-auto rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs leading-relaxed text-slate-600">A probability is shown only after an evaluated model is promoted. It is never a guarantee that an earthquake will or will not occur.</p></article></div>
-
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1.12fr_0.88fr]"><article className="panel overflow-hidden"><div className="flex items-center justify-between p-5 sm:p-6"><div><p className="eyebrow">VALIDATED EVENT QUEUE</p><h2 className="mt-2 text-2xl font-black tracking-[-0.04em]">Recent live source records</h2></div><span className="text-[11px] font-semibold text-slate-500">USGS public CSV</span></div><div className="overflow-x-auto"><table className="w-full min-w-[620px] text-left"><thead><tr className="border-y border-slate-100 bg-slate-50 text-[10px] font-bold tracking-[0.13em] text-slate-500"><th className="px-6 py-3">EVENT</th><th className="px-4 py-3">MAG.</th><th className="px-4 py-3">DEPTH</th><th className="px-4 py-3">JST</th><th className="px-6 py-3">SOURCE</th></tr></thead><tbody>{data.events.length ? data.events.map(event => <tr key={event.eventId} className="border-b border-slate-100 text-sm"><td className="px-6 py-4"><p className="font-bold">{event.locality}</p><p className="mt-0.5 text-xs text-slate-500">{event.region} · {event.latitude.toFixed(1)}°, {event.longitude.toFixed(1)}°</p></td><td className="px-4 py-4 font-black">M{event.magnitude.toFixed(1)}</td><td className="px-4 py-4 text-slate-600">{event.depthKm ?? "—"} km</td><td className="px-4 py-4 text-slate-600">{localTime(event.originTimeUtc)}</td><td className="px-6 py-4"><a href={event.sourceUrl} target="_blank" rel="noreferrer" className="rounded-full bg-[#eff7fb] px-2 py-1 text-[10px] font-bold text-[#35657f]">USGS</a></td></tr>) : <tr><td colSpan={5} className="px-6 py-8 text-sm text-slate-500">No verified source rows yet. Run the public GitHub Actions collection workflow once to import the first records.</td></tr>}</tbody></table></div></article><article className="panel p-5 sm:p-6"><p className="eyebrow">MODEL TRANSPARENCY</p><div className="mt-2 flex items-start justify-between gap-3"><h2 className="text-2xl font-black tracking-[-0.04em]">Metrics before claims</h2><Gauge size={21} className="text-slate-500" /></div><p className="mt-4 text-sm leading-6 text-slate-600">{data.model.version ? `Latest Sheets report ${data.model.version} · ${data.model.status}.` : data.model.calibration}</p><div className="mt-5 grid grid-cols-2 gap-2"><Metric label="Accuracy" value={metricValue(data.model.accuracy, "percent")} /><Metric label="PR-AUC" value={metricValue(data.model.prAuc, "decimal")} /><Metric label="Recall" value={metricValue(data.model.recall, "decimal")} /><Metric label="Brier score" value={metricValue(data.model.brierScore, "decimal")} /></div><div className="mt-5 rounded-xl bg-[#111111] p-4 text-white"><p className="text-[10px] font-bold tracking-[0.16em] text-slate-400">98% BENCHMARK</p><p className="mt-1 text-sm font-bold">Not forced or promised.</p><p className="mt-1 text-xs leading-5 text-slate-300">Candidate models must pass leakage-safe chronological evaluation, calibration review, and promotion gates.</p></div></article></div>
-
-      <section className="mt-6 grid gap-6 md:grid-cols-3"><OperationalCard icon={<Database size={18} />} label="Source registry" value="USGS CSV approved" copy="Public downloadable CSV with retained event URLs and source credit." onClick={() => setShowOperations(true)} /><OperationalCard icon={<BarChart3 size={18} />} label="Training workflow" value="Awaiting history" copy="No score or risk probability is fabricated before sufficient validated data exists." onClick={() => setShowOperations(true)} /><OperationalCard icon={<Activity size={18} />} label="Data export" value="Sheets initialized" copy="Required tabs and provenance headers are ready in the approved spreadsheet." onClick={() => setShowOperations(true)} /></section>
-      {showOperations && <OperationsPanel spreadsheetId={data.collection.spreadsheetId} />}
-    </section>
-    <footer className="border-t border-slate-200 bg-white/60 px-5 py-7 text-xs leading-5 text-slate-600 sm:px-8 lg:px-10"><div className="mx-auto flex max-w-7xl flex-wrap justify-between gap-4"><p>Japan Seismic Monitor · Live source configuration · Source attribution is mandatory for every record.</p><p>Probabilistic estimates are not official warnings and do not replace guidance from authorities.</p></div></footer>
-  </main>;
+function jstTime(utc: string | null) {
+  if (!utc) return "မသိရသေးပါ";
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Tokyo",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(utc));
 }
 
-function Metric({ label, value }: { label: string; value: string }) { return <div className="rounded-xl border border-slate-200 px-3 py-3"><p className="text-[10px] font-bold tracking-[0.12em] text-slate-500">{label}</p><p className="mt-1 text-sm font-bold">{value}</p></div>; }
-function OperationalCard({ icon, label, value, copy, onClick }: { icon: React.ReactNode; label: string; value: string; copy: string; onClick: () => void }) { return <article className="panel p-5"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#ecf2f5]">{icon}</div><p className="mt-4 text-[10px] font-bold tracking-[0.14em] text-slate-500">{label}</p><h3 className="mt-1 text-lg font-black tracking-[-0.03em]">{value}</h3><p className="mt-2 text-xs leading-5 text-slate-600">{copy}</p><button onClick={onClick} className="mt-4 text-xs font-bold underline decoration-slate-300 underline-offset-4 hover:decoration-black">Open operations</button></article>; }
-function OperationsPanel({ spreadsheetId }: { spreadsheetId: string }) { return <section className="mt-6 rounded-[28px] border border-[#111111] bg-white p-5 sm:p-7"><div className="flex items-start gap-3"><Activity className="mt-0.5" size={20} /><div><p className="eyebrow">PUBLIC GITHUB ACTIONS WORKFLOW</p><h2 className="mt-2 text-2xl font-black tracking-[-0.04em]">Run the collector without a local computer.</h2><p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">The approved spreadsheet is initialized. The public GitHub Actions workflow runs at minute 17 of each hour after its two encrypted repository secrets are configured. It downloads the documented USGS public CSV, validates rows, preserves provenance, deduplicates in Google Sheets, and upserts the live dataset.</p></div></div><div className="mt-5 rounded-xl bg-slate-950 p-4 font-mono text-xs leading-6 text-slate-100">Actions → Live USGS public CSV collection → Run workflow</div><div className="mt-5 grid gap-3 sm:grid-cols-3"><Status label="Source" value="USGS public CSV" /><Status label="Schedule" value="17 minutes past each hour" /><Status label="Sheet ID" value={spreadsheetId.slice(0, 8) + "…"} /></div><p className="mt-5 rounded-xl bg-[#eff7fb] px-3 py-3 text-xs leading-5 text-slate-700">Do not bypass access controls. The workflow does not call the earthquake API, scrape search results, or emit an official warning. Training starts only after the validated historical dataset meets its quality gates.</p></section>; }
-function Status({ label, value }: { label: string; value: string }) { return <div className="rounded-xl bg-slate-50 p-4"><p className="text-[10px] font-bold tracking-[0.13em] text-slate-500">{label}</p><p className="mt-1 text-sm font-bold">{value}</p></div>; }
+function movementLabel(trend: RegionActivity["trend"]) {
+  if (trend === "up") return "ပိုများလာသည်";
+  if (trend === "down") return "လျော့လာသည်";
+  return "တည်ငြိမ်သည်";
+}
+
+function probability(value: number | null) {
+  return value === null ? "စစ်ဆေးနေဆဲ" : `${value.toFixed(1)}%`;
+}
+
+export default function Home() {
+  const snapshot = trpc.seismic.snapshot.useQuery();
+  const data = snapshot.data;
+  const summary = useMemo(() => {
+    if (!data) return null;
+    const events24h = data.regions.reduce((total, region) => total + region.events24h, 0);
+    const events7d = data.regions.reduce((total, region) => total + region.events7d, 0);
+    const magnitudes = data.regions.map(region => region.maxMagnitude7d).filter((value): value is number => value !== null);
+    const exampleProbability = data.regions.find(region => region.probabilityM4_24h !== null)?.probabilityM4_24h ?? null;
+    const exampleSevenDayProbability = data.regions.find(region => region.probabilityM5_7d !== null)?.probabilityM5_7d ?? null;
+    return {
+      events24h,
+      events7d,
+      maxMagnitude7d: magnitudes.length ? Math.max(...magnitudes) : null,
+      exampleProbability,
+      exampleSevenDayProbability,
+    };
+  }, [data]);
+
+  if (snapshot.isLoading) {
+    return <main className="grid min-h-screen place-items-center bg-[#f5f7f8] px-6 text-center text-sm font-semibold text-slate-600">Live data ကို စစ်ဆေးနေပါသည်…</main>;
+  }
+
+  if (!data || !summary) {
+    return <main className="grid min-h-screen place-items-center bg-[#f5f7f8] px-6 text-center"><div><p className="text-lg font-black text-slate-900">Data ကို ယာယီမဖတ်နိုင်သေးပါ</p><button onClick={() => snapshot.refetch()} className="mt-4 rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white">ပြန်စစ်ရန်</button></div></main>;
+  }
+
+  const hasProductionModel = data.model.status === "production";
+
+  return (
+    <main className="min-h-screen bg-[#f5f7f8] text-slate-950 selection:bg-[#c8dded]">
+      <header className="border-b border-slate-200 bg-white/85 backdrop-blur">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-5 py-4 sm:px-8">
+          <div className="flex items-center gap-3">
+            <span className="grid h-10 w-10 place-items-center rounded-2xl bg-slate-950 text-white"><Waves size={19} /></span>
+            <div><p className="text-[10px] font-extrabold tracking-[0.18em] text-slate-500">JAPAN</p><h1 className="text-base font-black tracking-tight">Earthquake Monitor</h1></div>
+          </div>
+          <div className="flex items-center gap-2"><Link href="/events" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold shadow-sm hover:border-slate-950">Map</Link><Link href="/alerts" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold shadow-sm hover:border-slate-950">Alerts</Link><Link href="/forecasts" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold shadow-sm hover:border-slate-950">Forecasts</Link><Link href="/safety" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold shadow-sm hover:border-slate-950">Safety</Link><Link href="/status" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold shadow-sm hover:border-slate-950">Status</Link><button onClick={() => snapshot.refetch()} className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold shadow-sm hover:border-slate-950" aria-label="Refresh live data"><RefreshCcw size={14} />ပြန်စစ်ရန်</button></div>
+        </div>
+      </header>
+
+      <div className="mx-auto max-w-5xl px-5 py-7 sm:px-8 sm:py-10">
+        <section className="rounded-[28px] bg-slate-950 px-6 py-7 text-white shadow-[0_18px_55px_rgba(15,23,42,0.18)] sm:px-8">
+          <div className="flex flex-wrap items-start justify-between gap-5">
+            <div className="max-w-2xl"><p className="text-[10px] font-extrabold tracking-[0.18em] text-slate-400">လက်ရှိအခြေအနေ</p><h2 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">Japan earthquake activity ကို စောင့်ကြည့်နေပါသည်</h2><p className="mt-3 text-sm leading-6 text-slate-300">USGS public source မှ အတည်ပြု record များကို အလိုအလျောက် update လုပ်ထားပါသည်။</p></div>
+            <div className="rounded-2xl bg-white/10 px-4 py-3"><p className="text-[10px] font-bold tracking-[0.15em] text-slate-400">DATA STATUS</p><p className="mt-1 flex items-center gap-2 text-sm font-bold"><ShieldCheck size={16} className="text-[#c8dded]" />{data.collection.status === "active" ? "Live data ရရှိနေသည်" : "Update ကို စောင့်နေသည်"}</p></div>
+          </div>
+          <div className="mt-6 flex items-center gap-2 text-xs text-slate-400"><Clock3 size={14} />နောက်ဆုံး update: {jstTime(data.collection.lastSuccess)} (Japan time)</div>
+        </section>
+
+        <section className="mt-6 grid gap-3 sm:grid-cols-3" aria-label="Recent activity summary">
+          <SummaryCard label="လွန်ခဲ့သော 24 နာရီ" value={activityLabel(summary.events24h)} caption="မှတ်တမ်းတင်ထားသော events" />
+          <SummaryCard label="လွန်ခဲ့သော 7 ရက်" value={activityLabel(summary.events7d)} caption="မှတ်တမ်းတင်ထားသော events" />
+          <SummaryCard label="7 ရက်အတွင်း အမြင့်ဆုံး" value={summary.maxMagnitude7d === null ? "မတွေ့ရှိပါ" : `M${summary.maxMagnitude7d.toFixed(1)}`} caption="verified record များမှ" />
+        </section>
+
+        <section className="mt-6 rounded-3xl border border-[#b9d2e2] bg-[#edf7fc] p-5 sm:p-6">
+          <div className="flex items-start gap-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#c8dded] text-slate-800"><AlertTriangle size={17} /></span><div><h2 className="font-black">ခန့်မှန်းချက် အခြေအနေ</h2><p className="mt-1 text-sm leading-6 text-slate-700">{modelStatusCopy(data.model.status)}</p></div></div>
+          {hasProductionModel && <div className="mt-4 grid gap-3 sm:grid-cols-2"><SimpleProbability label="M4+ · နောက် 24 နာရီ" value={probability(summary.exampleProbability)} /><SimpleProbability label="M5+ · နောက် 7 ရက်" value={probability(summary.exampleSevenDayProbability)} /></div>}
+        </section>
+
+        <section className="mt-8">
+          <div className="flex items-end justify-between gap-4"><div><p className="text-[10px] font-extrabold tracking-[0.18em] text-slate-500">ဒေသအလိုက်</p><h2 className="mt-1 text-2xl font-black tracking-tight">Japan မှာ ဘယ်နေရာတွေ လှုပ်ရှားနေလဲ</h2></div><p className="text-xs text-slate-500">လွန်ခဲ့သော 7 ရက်</p></div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{data.regions.map(region => <article key={region.region} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><div className="flex items-center justify-between gap-3"><h3 className="font-black">{region.region}</h3><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-600">{movementLabel(region.trend)}</span></div><div className="mt-4 flex items-end justify-between"><div><p className="text-2xl font-black">{activityLabel(region.events7d)}</p><p className="text-xs text-slate-500">7 ရက်အတွင်း events</p></div><p className="text-sm font-bold text-slate-700">{region.maxMagnitude7d === null ? "M —" : `အမြင့်ဆုံး M${region.maxMagnitude7d.toFixed(1)}`}</p></div></article>)}</div>
+        </section>
+
+        <section className="mt-8 rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-100 px-5 py-5 sm:px-6"><p className="text-[10px] font-extrabold tracking-[0.18em] text-slate-500">နောက်ဆုံးမှတ်တမ်း</p><h2 className="mt-1 text-2xl font-black tracking-tight">အခုလတ်တလော earthquakes</h2></div>
+          <div className="divide-y divide-slate-100">{data.events.length ? data.events.slice(0, 12).map(event => <article key={event.eventId} className="flex items-center justify-between gap-4 px-5 py-4 sm:px-6"><div className="min-w-0"><p className="truncate text-sm font-bold">{event.locality}</p><p className="mt-1 text-xs text-slate-500">{event.region} · {jstTime(event.originTimeUtc)} (Japan time)</p></div><div className="shrink-0 text-right"><p className="text-lg font-black">M{event.magnitude.toFixed(1)}</p><p className="text-[11px] text-slate-500">{event.depthKm === null ? "Depth မသိရ" : `${event.depthKm.toFixed(0)} km depth`}</p></div></article>) : <p className="px-5 py-8 text-sm text-slate-500">အတည်ပြု record မရှိသေးပါ။ နောက်တစ်ကြိမ် update ကို စောင့်နေပါသည်။</p>}</div>
+        </section>
+
+        <section className="mt-8 rounded-2xl border border-slate-200 bg-white px-5 py-5 text-sm leading-6 text-slate-600 sm:px-6"><p className="font-black text-slate-900">သိထားသင့်သည်</p><p className="mt-1">ဤစနစ်သည် USGS public data ကို စောင့်ကြည့်ပြသခြင်းဖြစ်ပြီး တရားဝင်ငလျင်သတိပေးစနစ် မဟုတ်ပါ။ ငလျင်ဖြစ်မည့် အချိန်၊ နေရာ သို့မဟုတ် magnitude ကို အတိအကျ မခန့်မှန်းနိုင်ပါ။ အရေးပေါ်အခြေအနေတွင် Japan ၏ တရားဝင်အာဏာပိုင်များ၏ လမ်းညွှန်ချက်ကို လိုက်နာပါ။</p></section>
+      </div>
+    </main>
+  );
+}
+
+function SummaryCard({ label, value, caption }: { label: string; value: string; caption: string }) {
+  return <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><p className="text-[10px] font-extrabold tracking-[0.16em] text-slate-500">{label}</p><p className="mt-2 text-2xl font-black tracking-tight">{value}</p><p className="mt-1 text-xs text-slate-500">{caption}</p></article>;
+}
+
+function SimpleProbability({ label, value }: { label: string; value: string }) {
+  return <div className="rounded-2xl border border-[#b9d2e2] bg-white px-4 py-3"><p className="text-[10px] font-extrabold tracking-[0.15em] text-slate-500">{label}</p><p className="mt-1 text-xl font-black">{value}</p></div>;
+}

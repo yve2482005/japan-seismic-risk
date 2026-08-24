@@ -19,12 +19,12 @@ from typing import Any
 import numpy as np
 
 try:
-    from .google_sheets_sink import RAW_HEADERS, append_derived_records, append_system_log, create_or_prepare_spreadsheet, read_tab_records, replace_derived_tab, upsert_raw_records
+    from .google_sheets_sink import RAW_HEADERS, append_derived_records, append_system_log, append_unique_alert_records, append_unique_forecast_outcomes, create_or_prepare_spreadsheet, read_tab_records, replace_derived_tab, upsert_raw_records
     from .jma_historical_pipeline import JMA_BACKFILL_MONTHS, JMA_SOURCE, download_archive, parse_archive
     from .live_usgs_pipeline import USGS_CSV_URL, download_csv, normalize_usgs_row
     from .train_models import FEATURE_NAMES, STANDARD_TARGETS, build_dataset, parse_time, production_model, regional_feature_vector, train
 except ImportError:
-    from google_sheets_sink import RAW_HEADERS, append_derived_records, append_system_log, create_or_prepare_spreadsheet, read_tab_records, replace_derived_tab, upsert_raw_records
+    from google_sheets_sink import RAW_HEADERS, append_derived_records, append_system_log, append_unique_alert_records, append_unique_forecast_outcomes, create_or_prepare_spreadsheet, read_tab_records, replace_derived_tab, upsert_raw_records
     from jma_historical_pipeline import JMA_BACKFILL_MONTHS, JMA_SOURCE, download_archive, parse_archive
     from live_usgs_pipeline import USGS_CSV_URL, download_csv, normalize_usgs_row
     from train_models import FEATURE_NAMES, STANDARD_TARGETS, build_dataset, parse_time, production_model, regional_feature_vector, train
@@ -37,6 +37,8 @@ MAX_BRIER_SCORE = 0.25
 JAPAN_REGIONS = ("Hokkaido", "Tohoku", "Kanto", "Chubu", "Kansai", "Chugoku", "Shikoku", "Kyushu", "Okinawa")
 USGS_SOURCE = "U.S. Geological Survey (USGS), ANSS ComCat"
 USGS_LIVE_TAB = "USGS_LIVE_EARTHQUAKES"
+ALERT_MAX_EVENT_AGE_HOURS = 24
+ALERT_POLICY_VERSION = "usgs-magnitude-v1"
 
 
 def require_environment(name: str) -> str:
@@ -44,6 +46,57 @@ def require_environment(name: str) -> str:
     if not value:
         raise RuntimeError(f"{name} must be provided through an encrypted GitHub Actions repository secret.")
     return value
+
+
+def alert_definition(magnitude: float | None) -> tuple[str, str, float] | None:
+    """Return a detection-alert severity only for current USGS events at the configured default thresholds."""
+    if magnitude is None:
+        return None
+    if magnitude >= 6.0:
+        return "critical", "LEVEL_3", 6.0
+    if magnitude >= 5.0:
+        return "high", "LEVEL_2", 5.0
+    if magnitude >= 4.0:
+        return "normal", "LEVEL_1", 4.0
+    return None
+
+
+def source_aware_alert_records(records: list[dict[str, Any]], detected_at: datetime) -> list[dict[str, Any]]:
+    """Generate in-app detection alerts for new, fresh USGS events; never for historical JMA records or forecasts."""
+    alerts: list[dict[str, Any]] = []
+    for record in records:
+        if record.get("source") != USGS_SOURCE:
+            continue
+        try:
+            origin = parse_time(str(record["origin_time_utc"]))
+            magnitude = float(record["magnitude"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        age_hours = (detected_at - origin).total_seconds() / 3600
+        definition = alert_definition(magnitude)
+        if definition is None or age_hours < -1 or age_hours > ALERT_MAX_EVENT_AGE_HOURS:
+            continue
+        severity, level, threshold = definition
+        alerts.append({
+            "alert_id": f"{ALERT_POLICY_VERSION}:{record['event_id']}:{level}",
+            "event_id": record["event_id"],
+            "alert_type": "earthquake_detection_not_prediction",
+            "severity": severity,
+            "threshold_magnitude": threshold,
+            "event_magnitude": magnitude,
+            "region": record.get("region", ""),
+            "locality": record.get("nearest_city", "") or "Source locality not supplied",
+            "latitude": record.get("latitude", ""),
+            "longitude": record.get("longitude", ""),
+            "depth_km": record.get("depth_km", ""),
+            "origin_time_utc": origin.isoformat().replace("+00:00", "Z"),
+            "source": USGS_SOURCE,
+            "source_url": record.get("source_url", ""),
+            "reason": f"Magnitude M{magnitude:.1f} met the M{threshold:.1f}+ {level} detection-alert threshold.",
+            "detected_at": detected_at.isoformat().replace("+00:00", "Z"),
+            "delivery_status": "in_app_history_created",
+        })
+    return alerts
 
 
 def collect(spreadsheet_id: str) -> dict[str, Any]:
@@ -64,8 +117,11 @@ def collect(spreadsheet_id: str) -> dict[str, Any]:
         record["normalized_value"] = json.dumps(record["normalized_value"], ensure_ascii=False)
         record["source_updated_epoch_ms"] = item.updated_epoch_ms
         normalized.append(record)
+    existing_event_ids = {row.get("event_id") for row in read_tab_records(spreadsheet_id, USGS_LIVE_TAB) if row.get("event_id")}
     outcome = upsert_raw_records(spreadsheet_id, normalized, tab=USGS_LIVE_TAB)
-    result = {"source": "USGS public monthly CSV", "source_url": USGS_CSV_URL, "rows_in_japan_envelope": len(normalized), "invalid_rejected": invalid, "outside_envelope": outside_japan, **outcome, "completed_at": datetime.now(timezone.utc).isoformat()}
+    new_events = [record for record in normalized if record["event_id"] not in existing_event_ids]
+    alert_outcome = append_unique_alert_records(spreadsheet_id, source_aware_alert_records(new_events, collected_at))
+    result = {"source": "USGS public monthly CSV", "source_url": USGS_CSV_URL, "rows_in_japan_envelope": len(normalized), "invalid_rejected": invalid, "outside_envelope": outside_japan, **outcome, "new_events_considered_for_alerts": len(new_events), "alerts": alert_outcome, "completed_at": datetime.now(timezone.utc).isoformat()}
     append_system_log(spreadsheet_id, "collector", "info", "USGS public CSV collection completed", result)
     return result
 
@@ -206,6 +262,15 @@ def effective_model_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return list(effective.values())
 
 
+def active_production_rows(existing_rows: list[dict[str, Any]], new_rows: list[dict[str, Any]], dataset_version: str) -> list[dict[str, Any]]:
+    """Return only genuinely retained production models for this source-specific dataset."""
+    return [
+        row
+        for row in effective_model_rows([*existing_rows, *new_rows])
+        if row.get("status") == "production" and row.get("dataset_version") == dataset_version
+    ]
+
+
 def candidate_outperforms(candidate: dict[str, Any], production: dict[str, Any] | None) -> bool:
     """Require an eligible candidate to match or improve all retained production safeguards."""
     if production is None:
@@ -266,7 +331,7 @@ def risk_level(probability: float) -> str:
 
 
 def production_prediction_rows(production_rows: list[dict[str, Any]], records: list[dict[str, Any]], generated_at: str) -> list[dict[str, Any]]:
-    """Create Sheet prediction rows only for models promoted in this exact USGS run."""
+    """Create Sheet prediction rows only for retained, genuinely promoted USGS models."""
     targets = {f"M{target.magnitude_threshold:g}_NEXT_{target.horizon_hours}H": target for target in STANDARD_TARGETS}
     as_of = parse_time(generated_at)
     predictions: list[dict[str, Any]] = []
@@ -282,6 +347,39 @@ def production_prediction_rows(production_rows: list[dict[str, Any]], records: l
             probability = float(model.predict_proba([vector])[0][1])
             predictions.append({"prediction_id": f"{report['model_version']}-{region}-{report['target_definition']}-{generated_at}", "model_version": report["model_version"], "region": region, "target_definition": report["target_definition"], "probability": probability, "risk_level": risk_level(probability), "generated_at": generated_at})
     return predictions
+
+
+def _target_threshold_and_window(target_definition: str) -> tuple[float, int] | None:
+    compact = target_definition.replace("+", "")
+    match = __import__("re").search(r"M(\d+(?:\.\d+)?)_NEXT_(\d+)H", compact, flags=__import__("re").I)
+    if match:
+        return float(match.group(1)), int(match.group(2))
+    match = __import__("re").search(r"M(\d+(?:\.\d+)?).*?(\d+)\s*(?:H|HOUR)", compact, flags=__import__("re").I)
+    return (float(match.group(1)), int(match.group(2))) if match else None
+
+
+def closed_production_forecast_outcomes(prediction_rows: list[dict[str, Any]], production_metric_rows: list[dict[str, Any]], records: list[dict[str, Any]], closed_at: datetime) -> list[dict[str, Any]]:
+    """Materialize outcomes only for historical, genuinely promoted USGS predictions whose windows have closed."""
+    production_versions = {row.get("model_version") for row in production_metric_rows if row.get("status") == "production" and row.get("dataset_version") == "usgs-live-sheet-v1"}
+    outcomes: list[dict[str, Any]] = []
+    for prediction in prediction_rows:
+        if prediction.get("model_version") not in production_versions:
+            continue
+        target = _target_threshold_and_window(str(prediction.get("target_definition") or ""))
+        try:
+            generated_at = parse_time(str(prediction["generated_at"]))
+            probability = float(prediction["probability"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if target is None or probability < 0 or probability > 1 or prediction.get("region") not in JAPAN_REGIONS:
+            continue
+        threshold, window_hours = target
+        window_ends_at = generated_at.timestamp() + window_hours * 3600
+        if closed_at.timestamp() < window_ends_at:
+            continue
+        matched = next((record for record in records if record.get("region") == prediction["region"] and generated_at.timestamp() < parse_time(record["origin_time_utc"]).timestamp() <= window_ends_at and float(record.get("magnitude") or -99) >= threshold), None)
+        outcomes.append({"outcome_id": f"{prediction['prediction_id']}:closed", "prediction_id": prediction["prediction_id"], "model_version": prediction["model_version"], "dataset_version": "usgs-live-sheet-v1", "region": prediction["region"], "target_definition": prediction["target_definition"], "prediction_probability": probability, "generated_at": generated_at.isoformat().replace("+00:00", "Z"), "window_ends_at": datetime.fromtimestamp(window_ends_at, timezone.utc).isoformat().replace("+00:00", "Z"), "outcome_status": "closed", "actual_label": 1 if matched else 0, "matched_event_id": matched["event_id"] if matched else "", "closed_at": closed_at.isoformat().replace("+00:00", "Z")})
+    return outcomes
 
 
 def train_if_ready(spreadsheet_id: str, records: list[dict[str, Any]], dataset_version: str, allow_promotion: bool) -> dict[str, Any]:
@@ -313,7 +411,8 @@ def train_if_ready(spreadsheet_id: str, records: list[dict[str, Any]], dataset_v
     promoted_at = datetime.now(timezone.utc).isoformat()
     retired_rows, promoted = promote_rows(rows, existing_rows, promoted_at) if allow_promotion else ([], 0)
     append_derived_records(spreadsheet_id, "MODEL_METRICS", [*rows, *retired_rows])
-    prediction_rows = production_prediction_rows([row for row in rows if row["status"] == "production"], records, promoted_at) if allow_promotion else []
+    retained_production = active_production_rows(existing_rows, [*rows, *retired_rows], dataset_version) if allow_promotion else []
+    prediction_rows = production_prediction_rows(retained_production, records, promoted_at) if allow_promotion else []
     if prediction_rows:
         append_derived_records(spreadsheet_id, "PREDICTIONS", prediction_rows)
     result = {"status": "production_models_promoted" if promoted else ("candidate_reports_generated" if allow_promotion else "candidate_reports_source_separated"), "dataset_version": dataset_version, "reports": len(rows), "promoted_models": promoted, "production_predictions": len(prediction_rows), "deferred_targets": deferred_targets, "promotion_thresholds": {"max_brier_score": MAX_BRIER_SCORE, "max_expected_calibration_error": MAX_EXPECTED_CALIBRATION_ERROR}, **gate}
@@ -333,6 +432,9 @@ def main() -> None:
         output["collection"] = collect(spreadsheet_id)
     if args.mode in {"train", "all"}:
         records = normalized_records(spreadsheet_id, USGS_SOURCE, tab=USGS_LIVE_TAB)
+        production_history = read_tab_records(spreadsheet_id, "MODEL_METRICS")
+        outcomes = closed_production_forecast_outcomes(read_tab_records(spreadsheet_id, "PREDICTIONS"), production_history, records, datetime.now(timezone.utc))
+        output["forecast_outcomes"] = append_unique_forecast_outcomes(spreadsheet_id, outcomes)
         output["derived"] = materialize_features(spreadsheet_id, records, "usgs-live-sheet-v1")
         output["training"] = train_if_ready(spreadsheet_id, records, "usgs-live-sheet-v1", allow_promotion=True)
     if args.mode == "jma-backfill":

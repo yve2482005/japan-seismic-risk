@@ -17,14 +17,16 @@ from typing import Any, Iterable
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 
-REQUIRED_TABS = ("RAW_EARTHQUAKES", "USGS_LIVE_EARTHQUAKES", "FEATURES", "TRAINING_DATA", "PREDICTIONS", "MODEL_METRICS", "SYSTEM_LOG")
+REQUIRED_TABS = ("RAW_EARTHQUAKES", "USGS_LIVE_EARTHQUAKES", "ALERTS", "FEATURES", "TRAINING_DATA", "PREDICTIONS", "FORECAST_OUTCOMES", "MODEL_METRICS", "SYSTEM_LOG")
 RAW_HEADERS = ("event_id", "source", "source_url", "origin_time_utc", "local_time_japan", "latitude", "longitude", "depth_km", "magnitude", "magnitude_type", "region", "prefecture", "nearest_city", "event_type", "collection_time", "data_quality", "duplicate_status", "training_eligible", "cross_source_duplicate_status", "raw_value", "normalized_value", "source_updated_epoch_ms")
 TAB_HEADERS = {
     "RAW_EARTHQUAKES": RAW_HEADERS,
     "USGS_LIVE_EARTHQUAKES": RAW_HEADERS,
+    "ALERTS": ("alert_id", "event_id", "alert_type", "severity", "threshold_magnitude", "event_magnitude", "region", "locality", "latitude", "longitude", "depth_km", "origin_time_utc", "source", "source_url", "reason", "detected_at", "delivery_status"),
     "FEATURES": ("event_id", "feature_as_of_utc", "region", "target_name", "features_json", "created_at"),
     "TRAINING_DATA": ("event_id", "target_name", "label", "feature_version", "dataset_version", "created_at"),
     "PREDICTIONS": ("prediction_id", "model_version", "region", "target_definition", "probability", "risk_level", "generated_at"),
+    "FORECAST_OUTCOMES": ("outcome_id", "prediction_id", "model_version", "dataset_version", "region", "target_definition", "prediction_probability", "generated_at", "window_ends_at", "outcome_status", "actual_label", "matched_event_id", "closed_at"),
     "MODEL_METRICS": ("model_version", "algorithm", "target_definition", "dataset_version", "metrics_json", "calibration_json", "status", "trained_at"),
     "SYSTEM_LOG": ("timestamp_utc", "component", "severity", "message", "context_json"),
 }
@@ -153,6 +155,52 @@ def append_derived_records(spreadsheet_id: str, tab: str, records: Iterable[dict
     if rows:
         sheet_service().spreadsheets().values().append(spreadsheetId=spreadsheet_id, range=f"{tab}!A:Z", valueInputOption="RAW", insertDataOption="INSERT_ROWS", body={"values": rows}).execute()
     return len(rows)
+
+
+def append_unique_alert_records(spreadsheet_id: str, records: Iterable[dict[str, Any]]) -> dict[str, int]:
+    """Append alert history once per deterministic alert ID without altering prior alert rows."""
+    headers = TAB_HEADERS["ALERTS"]
+    service = sheet_service()
+    current = service.spreadsheets().values().get(spreadsheetId=spreadsheet_id, range="ALERTS!A:Z").execute().get("values", [])
+    existing_ids = {row[0] for row in current[1:] if row and row[0]}
+    rows = []
+    skipped = 0
+    for record in records:
+        alert_id = str(record.get("alert_id") or "")
+        if not alert_id or alert_id in existing_ids:
+            skipped += 1
+            continue
+        existing_ids.add(alert_id)
+        rows.append([record.get(header, "") for header in headers])
+    for offset in range(0, len(rows), RAW_APPEND_BATCH_SIZE):
+        batch = rows[offset:offset + RAW_APPEND_BATCH_SIZE]
+        service.spreadsheets().values().append(spreadsheetId=spreadsheet_id, range="ALERTS!A:Q", valueInputOption="RAW", insertDataOption="INSERT_ROWS", body={"values": batch}).execute()
+        if offset + RAW_APPEND_BATCH_SIZE < len(rows):
+            time.sleep(1.05)
+    return {"created": len(rows), "duplicates_skipped": skipped}
+
+
+def append_unique_forecast_outcomes(spreadsheet_id: str, records: Iterable[dict[str, Any]]) -> dict[str, int]:
+    """Append each closed production forecast outcome once, keyed by deterministic outcome_id."""
+    headers = TAB_HEADERS["FORECAST_OUTCOMES"]
+    service = sheet_service()
+    current = service.spreadsheets().values().get(spreadsheetId=spreadsheet_id, range="FORECAST_OUTCOMES!A:Z").execute().get("values", [])
+    existing_ids = {row[0] for row in current[1:] if row and row[0]}
+    rows = []
+    skipped = 0
+    for record in records:
+        outcome_id = str(record.get("outcome_id") or "")
+        if not outcome_id or outcome_id in existing_ids:
+            skipped += 1
+            continue
+        existing_ids.add(outcome_id)
+        rows.append([record.get(header, "") for header in headers])
+    for offset in range(0, len(rows), RAW_APPEND_BATCH_SIZE):
+        batch = rows[offset:offset + RAW_APPEND_BATCH_SIZE]
+        service.spreadsheets().values().append(spreadsheetId=spreadsheet_id, range="FORECAST_OUTCOMES!A:M", valueInputOption="RAW", insertDataOption="INSERT_ROWS", body={"values": batch}).execute()
+        if offset + RAW_APPEND_BATCH_SIZE < len(rows):
+            time.sleep(1.05)
+    return {"created": len(rows), "duplicates_skipped": skipped}
 
 
 def append_system_log(spreadsheet_id: str, component: str, severity: str, message: str, context: dict[str, Any]) -> None:

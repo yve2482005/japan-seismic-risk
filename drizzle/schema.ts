@@ -117,3 +117,39 @@ export const systemLogs = mysqlTable("systemLogs", {
   contextJson: text("contextJson"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
+
+/** Private browser subscription endpoints. These are never returned by public APIs or written to Sheets. */
+export const pushSubscriptions = mysqlTable("pushSubscriptions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  endpointHash: varchar("endpointHash", { length: 64 }).notNull().unique(),
+  subscriptionJson: text("subscriptionJson").notNull(),
+  minimumMagnitude: int("minimumMagnitude").default(4).notNull(),
+  regionsJson: text("regionsJson").notNull(),
+  enabled: boolean("enabled").default(true).notNull(),
+  failureCount: int("failureCount").default(0).notNull(),
+  lastPushAt: timestamp("lastPushAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+/** Immutable per-subscription delivery state prevents retries from duplicating a push for the same alert. */
+export const pushDeliveries = mysqlTable("pushDeliveries", {
+  id: int("id").autoincrement().primaryKey(),
+  deliveryKey: varchar("deliveryKey", { length: 255 }).notNull().unique(),
+  alertId: varchar("alertId", { length: 191 }).notNull(),
+  subscriptionId: int("subscriptionId").notNull(),
+  status: mysqlEnum("status", ["pending", "sent", "failed", "invalid_subscription", "filtered"]).notNull(),
+  failureCode: varchar("failureCode", { length: 64 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  deliveredAt: timestamp("deliveredAt"),
+});
+
+/** A singleton VAPID key pair, with the private key encrypted using the server’s existing secret before database storage. */
+export const pushConfiguration = mysqlTable("pushConfiguration", {
+  id: int("id").primaryKey(),
+  publicKey: varchar("publicKey", { length: 255 }).notNull(),
+  sealedPrivateKey: text("sealedPrivateKey").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
