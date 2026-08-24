@@ -9,10 +9,19 @@ describe("quiet-hours sound muting", () => {
     expect(isQuietHoursActive(quietHours, new Date(2026, 7, 25, 12, 0))).toBe(false);
   });
 
+  it("includes the start, excludes the end, and treats equal times as no schedule", () => {
+    const daytimeQuietHours = { ...DEFAULT_QUIET_HOURS, enabled: true, start: "09:00", end: "17:00" };
+    expect(isQuietHoursActive(daytimeQuietHours, new Date(2026, 7, 24, 9, 0))).toBe(true);
+    expect(isQuietHoursActive(daytimeQuietHours, new Date(2026, 7, 24, 16, 59))).toBe(true);
+    expect(isQuietHoursActive(daytimeQuietHours, new Date(2026, 7, 24, 17, 0))).toBe(false);
+    expect(isQuietHoursActive({ ...daytimeQuietHours, start: "09:00", end: "09:00" }, new Date(2026, 7, 24, 9, 30))).toBe(false);
+  });
+
   it("mutes for visual-only mode or valid enabled quiet hours", () => {
     const daytimeQuietHours = { ...DEFAULT_QUIET_HOURS, enabled: true, start: "09:00", end: "17:00" };
     expect(foregroundSoundIsMuted(true, DEFAULT_QUIET_HOURS, new Date(2026, 7, 24, 12, 0))).toBe(true);
     expect(foregroundSoundIsMuted(false, daytimeQuietHours, new Date(2026, 7, 24, 12, 0))).toBe(true);
+    expect(isQuietHoursActive({ ...daytimeQuietHours, enabled: false }, new Date(2026, 7, 24, 12, 0))).toBe(false);
     expect(isTimeInput("22:00")).toBe(true);
     expect(isTimeInput("25:00")).toBe(false);
   });

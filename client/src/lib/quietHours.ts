@@ -16,7 +16,7 @@ export function isQuietHoursActive(quietHours: QuietHours, now = new Date()) {
   const start = minutesSinceMidnight(quietHours.start);
   const end = minutesSinceMidnight(quietHours.end);
   const current = now.getHours() * 60 + now.getMinutes();
-  if (start === end) return true;
+  if (start === end) return false;
   if (start < end) return current >= start && current < end;
   return current >= start || current < end;
 }

@@ -329,8 +329,8 @@ export default function Alerts() {
           <div className="mt-5 rounded-2xl border border-[#d6c6e8] bg-[#f7f2fb] p-4">
             <Toggle label="Do Not Disturb schedule — mute sound" icon={<Moon size={15} />} checked={preferences.quietHoursEnabled} onChange={quietHoursEnabled => update({ quietHoursEnabled })} />
             {preferences.quietHoursEnabled && <div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="text-sm font-bold">Start time<input type="time" value={preferences.quietHoursStart} onChange={event => update({ quietHoursStart: event.target.value })} className="mt-2 block w-full rounded-xl border border-[#c6b4da] bg-white px-3 py-2 text-sm" /></label><label className="text-sm font-bold">End time<input type="time" value={preferences.quietHoursEnd} onChange={event => update({ quietHoursEnd: event.target.value })} className="mt-2 block w-full rounded-xl border border-[#c6b4da] bg-white px-3 py-2 text-sm" /></label></div>}
-            <p className="mt-3 text-xs leading-5 text-slate-600">သတ်မှတ်ထားသော local device time အတွင်း app ဖွင့်ထားချိန်၏ alert sound ကိုသာ mute လုပ်ပြီး red visual alert ကိုဆက်ပြပါမယ်။ Midnight ဖြတ်သန်းသော schedule (ဥပမာ 22:00–07:00) ကိုလည်း ပံ့ပိုးပါသည်။</p>
-            <p className="mt-2 text-xs font-bold text-slate-700">{preferences.quietHoursEnabled ? (isQuietHoursActive(quietHours) ? "Quiet hours are active now — foreground sound is muted." : `Quiet hours are set: ${preferences.quietHoursStart}–${preferences.quietHoursEnd}.`) : "Quiet hours are off."}</p>
+            <p className="mt-3 text-xs leading-5 text-slate-600">သတ်မှတ်ထားသော local device time အတွင်း app ဖွင့်ထားချိန်၏ alert sound ကိုသာ mute လုပ်ပြီး red visual alert ကိုဆက်ပြပါမယ်။ Midnight ဖြတ်သန်းသော schedule (ဥပမာ 22:00–07:00) ကိုလည်း ပံ့ပိုးပါသည်။ Start/End တူညီလျှင် schedule မလုပ်ပါ။</p>
+            <p className="mt-2 text-xs font-bold text-slate-700">{preferences.quietHoursEnabled ? (preferences.quietHoursStart === preferences.quietHoursEnd ? "Quiet hours are not active because Start and End are the same." : isQuietHoursActive(quietHours) ? "Quiet hours are active now — foreground sound is muted." : `Quiet hours are set: ${preferences.quietHoursStart}–${preferences.quietHoursEnd}.`) : "Quiet hours are off."}</p>
             <p className="mt-2 text-xs leading-5 text-slate-500">App-closed browser notifications သည် ဖုန်း/OS Do Not Disturb စနစ်ကိုလိုက်နာပါသည်; ဤ local schedule က background push ကို မပြောင်းလဲပါ။</p>
           </div>
 
@@ -342,7 +342,7 @@ export default function Alerts() {
 
           <div className="mt-5 rounded-2xl border border-[#b8d9eb] bg-[#edf7fc] p-4">
             <p className="flex items-center gap-2 text-sm font-black"><Volume2 size={16} />Magnitude sound preview</p>
-            <p className="mt-1 text-xs leading-5 text-slate-600">App ဖွင့်ထားချိန်တွင်သာ in-app sound နှင့် visual alert ရနိုင်ပါသည်။ Test button ကိုနှိပ်၍ အသံကွဲပြားမှု စမ်းပါ—အသံသည် official warning level မဟုတ်ပါ။</p>
+            <p className="mt-1 text-xs leading-5 text-slate-600">App ဖွင့်ထားချိန်တွင်သာ in-app sound နှင့် visual alert ရနိုင်ပါသည်။ Test controls များသည် quiet hours နှင့် visual-only mute ကိုလိုက်နာပါသည်—အသံသည် official warning level မဟုတ်ပါ။</p>
             <div className="mt-3 flex flex-wrap gap-2">
               <button onClick={testSiren} className="rounded-xl bg-[#b42318] px-3 py-2 text-xs font-black text-white shadow-sm hover:bg-[#8f1d14]"><Volume2 className="mr-1 inline" size={14} />Test M6.0+ sound</button>
               {[4, 6].map(magnitude => <button key={magnitude} onClick={() => testSound(magnitude)} className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold hover:border-slate-950">Test {magnitudeSoundLabel(magnitude, magnitudeSoundOptions)}</button>)}
