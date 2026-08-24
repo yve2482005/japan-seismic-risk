@@ -6,6 +6,8 @@ import { getDb } from "./db";
 
 export type SubscriptionPreferences = { minimumMagnitude: 4 | 5 | 6; regions: string[] };
 export type BrowserPushSubscription = { endpoint: string; keys: { p256dh: string; auth: string } };
+export const USGS_ALERT_SOURCE_PREFIX = "U.S. Geological Survey (USGS)";
+export const MAX_PUSH_ALERT_AGE_MS = 24 * 60 * 60 * 1000;
 
 function encryptionKey() {
   const secret = process.env.JWT_SECRET;
@@ -30,6 +32,7 @@ function unseal(value: string) {
 
 export function endpointHash(endpoint: string) { return createHash("sha256").update(endpoint).digest("hex"); }
 export function validSubscription(subscription: BrowserPushSubscription) { return Boolean(subscription.endpoint?.startsWith("https://") && subscription.keys?.p256dh && subscription.keys?.auth); }
+export function isCanonicalUsgsAlertSource(source: string) { return source.trim().startsWith(USGS_ALERT_SOURCE_PREFIX); }
 
 export async function vapidConfiguration() {
   const db = await getDb();
@@ -52,7 +55,7 @@ export async function saveSubscription(userId: number, subscription: BrowserPush
   const db = await getDb();
   if (!db) throw new Error("Private push storage is unavailable.");
   const hash = endpointHash(subscription.endpoint);
-  const values = { userId, endpointHash: hash, subscriptionJson: JSON.stringify(subscription), minimumMagnitude: preferences.minimumMagnitude, regionsJson: JSON.stringify(preferences.regions), enabled: true, failureCount: 0 };
+  const values = { userId, endpointHash: hash, subscriptionJson: JSON.stringify(subscription), minimumMagnitude: preferences.minimumMagnitude, regionsJson: JSON.stringify(preferences.regions), enabled: true, failureCount: 0, activatedAt: new Date() };
   const existing = (await db.select().from(pushSubscriptions).where(eq(pushSubscriptions.endpointHash, hash)).limit(1))[0];
   if (existing) {
     await db.update(pushSubscriptions).set(values).where(eq(pushSubscriptions.id, existing.id));
@@ -80,9 +83,15 @@ export async function disableSubscription(userId: number, endpoint: string) {
 }
 
 function safelyParseRegions(value: string) { try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed.filter((entry): entry is string => typeof entry === "string") : []; } catch { return []; } }
-export function subscriptionMatchesAlert(subscription: { enabled: boolean; minimumMagnitude: number; regionsJson: string }, alert: { source: string; eventMagnitude: number; region: string }) { return subscription.enabled && alert.source === "USGS" && alert.eventMagnitude >= subscription.minimumMagnitude && safelyParseRegions(subscription.regionsJson).includes(alert.region); }
+export function subscriptionMatchesAlert(subscription: { enabled: boolean; minimumMagnitude: number; regionsJson: string }, alert: { source: string; eventMagnitude: number; region: string }) { return subscription.enabled && isCanonicalUsgsAlertSource(alert.source) && alert.eventMagnitude >= subscription.minimumMagnitude && safelyParseRegions(subscription.regionsJson).includes(alert.region); }
+export function subscriptionCanReceiveAlert(subscription: { enabled: boolean; minimumMagnitude: number; regionsJson: string; activatedAt: Date }, alert: { source: string; eventMagnitude: number; region: string; detectedAt: string }, now = new Date()) {
+  if (!subscriptionMatchesAlert(subscription, alert)) return false;
+  const detectedAt = new Date(alert.detectedAt);
+  const detectedMs = detectedAt.getTime();
+  return Number.isFinite(detectedMs) && detectedMs >= subscription.activatedAt.getTime() && detectedMs <= now.getTime() && now.getTime() - detectedMs <= MAX_PUSH_ALERT_AGE_MS;
+}
 
-export async function deliverNewUsgsAlerts(alerts: Array<{ alertId: string; source: string; eventMagnitude: number; region: string; locality: string; originTimeUtc: string; severity: string }>) {
+export async function deliverNewUsgsAlerts(alerts: Array<{ alertId: string; source: string; eventMagnitude: number; region: string; locality: string; originTimeUtc: string; severity: string; detectedAt: string }>) {
   const db = await getDb();
   if (!db) throw new Error("Private push storage is unavailable.");
   const enabled = await db.select().from(pushSubscriptions).where(eq(pushSubscriptions.enabled, true));
@@ -90,7 +99,7 @@ export async function deliverNewUsgsAlerts(alerts: Array<{ alertId: string; sour
   webpush.setVapidDetails(process.env.WEB_PUSH_SUBJECT || "https://japanseismic-269jnxjv.manus.space", vapid.publicKey, vapid.privateKey);
   let sent = 0, filtered = 0, failed = 0, invalid = 0;
   for (const alert of alerts) for (const subscription of enabled) {
-    if (!subscriptionMatchesAlert(subscription, alert)) { filtered += 1; continue; }
+    if (!subscriptionCanReceiveAlert(subscription, alert)) { filtered += 1; continue; }
     const deliveryKey = `${alert.alertId}:${subscription.id}`;
     try { await db.insert(pushDeliveries).values({ deliveryKey, alertId: alert.alertId, subscriptionId: subscription.id, status: "pending" }); } catch { continue; }
     try {

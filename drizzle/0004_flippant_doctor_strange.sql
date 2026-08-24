@@ -1,0 +1,1 @@
+ALTER TABLE `pushSubscriptions` ADD `activatedAt` timestamp DEFAULT (now()) NOT NULL;

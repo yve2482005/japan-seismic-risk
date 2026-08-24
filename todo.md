@@ -107,7 +107,9 @@
 - [x] Add user-testable, magnitude-differentiated in-app notification sounds with explicit foreground, browser-permission, and silent/DND limitations.
 - [x] Compare and obtain user selection for a secure app-closed background notification delivery path that preserves the $0 constraint and explicit device-control limits.
 - [x] Add opt-in push subscriptions, authenticated private storage, user preference synchronization, and unsubscribe controls.
-- [ ] Publish the GitHub OIDC-authenticated workflow step and sealed server-side VAPID sender so qualifying new USGS alerts can be delivered without a long-lived workflow secret.
+- [x] Publish the GitHub OIDC-authenticated workflow step and sealed server-side VAPID sender so qualifying new USGS alerts can be delivered without a long-lived workflow secret.
 - [x] Add delivery status, invalid-subscription cleanup, and source/magnitude/region safeguards without exposing subscription endpoints.
 - [ ] Verify one end-to-end background notification delivery on an opted-in user device after the updated workflow is published.
-- [ ] Remove the unnecessary pnpm cache dependency from the GitHub Actions OIDC delivery step and re-verify one manual collection run.
+- [x] Remove the unnecessary pnpm cache dependency from the GitHub Actions OIDC delivery step and re-verify one manual collection run.
+- [x] Accept the collector’s canonical USGS attribution in background delivery while continuing to exclude JMA and other sources.
+- [x] Add an explicit subscription activation and recent-alert cutoff so a new device cannot receive historical alert backlog.

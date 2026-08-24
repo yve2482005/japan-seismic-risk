@@ -129,6 +129,8 @@ export const pushSubscriptions = mysqlTable("pushSubscriptions", {
   enabled: boolean("enabled").default(true).notNull(),
   failureCount: int("failureCount").default(0).notNull(),
   lastPushAt: timestamp("lastPushAt"),
+  /** Reset whenever a device is enabled or its preferences change; earlier sheet alerts must not be delivered. */
+  activatedAt: timestamp("activatedAt").defaultNow().notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

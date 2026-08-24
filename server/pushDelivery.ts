@@ -1,6 +1,6 @@
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
 import { readSheetRows } from "./googleSheets";
-import { deliverNewUsgsAlerts } from "./pushSubscriptions";
+import { deliverNewUsgsAlerts, isCanonicalUsgsAlertSource } from "./pushSubscriptions";
 
 const ISSUER = "https://token.actions.githubusercontent.com";
 const AUDIENCE = "japan-seismic-push";
@@ -25,6 +25,6 @@ export async function deliverPendingPushAlerts() {
   const { rows } = await readSheetRows("ALERTS");
   const alerts = rows.map(row => ({
     alertId: text(row, "alert_id"), source: text(row, "source"), eventMagnitude: numberValue(row, "event_magnitude"), region: text(row, "region"), locality: text(row, "locality"), originTimeUtc: text(row, "origin_time_utc"), severity: text(row, "severity").toLowerCase(), detectedAt: text(row, "detected_at"),
-  })).filter((alert): alert is { alertId: string; source: string; eventMagnitude: number; region: string; locality: string; originTimeUtc: string; severity: string; detectedAt: string } => Boolean(alert.alertId && alert.source === "USGS" && alert.eventMagnitude !== null && alert.region && alert.locality && alert.originTimeUtc));
+  })).filter((alert): alert is { alertId: string; source: string; eventMagnitude: number; region: string; locality: string; originTimeUtc: string; severity: string; detectedAt: string } => Boolean(alert.alertId && isCanonicalUsgsAlertSource(alert.source) && alert.eventMagnitude !== null && alert.region && alert.locality && alert.originTimeUtc && alert.detectedAt));
   return deliverNewUsgsAlerts(alerts);
 }
