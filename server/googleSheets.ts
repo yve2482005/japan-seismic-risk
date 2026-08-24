@@ -3,10 +3,11 @@ import { and, desc, eq } from "drizzle-orm";
 import { systemLogs } from "../drizzle/schema";
 import { getDb } from "./db";
 
-export const LIVE_SHEET_TABS = ["RAW_EARTHQUAKES", "FEATURES", "TRAINING_DATA", "PREDICTIONS", "MODEL_METRICS", "SYSTEM_LOG"] as const;
-export const RAW_HEADERS = ["event_id", "source", "source_url", "origin_time_utc", "local_time_japan", "latitude", "longitude", "depth_km", "magnitude", "magnitude_type", "region", "prefecture", "nearest_city", "event_type", "collection_time", "data_quality", "duplicate_status", "raw_value", "normalized_value", "source_updated_epoch_ms"] as const;
+export const LIVE_SHEET_TABS = ["RAW_EARTHQUAKES", "USGS_LIVE_EARTHQUAKES", "FEATURES", "TRAINING_DATA", "PREDICTIONS", "MODEL_METRICS", "SYSTEM_LOG"] as const;
+export const RAW_HEADERS = ["event_id", "source", "source_url", "origin_time_utc", "local_time_japan", "latitude", "longitude", "depth_km", "magnitude", "magnitude_type", "region", "prefecture", "nearest_city", "event_type", "collection_time", "data_quality", "duplicate_status", "training_eligible", "cross_source_duplicate_status", "raw_value", "normalized_value", "source_updated_epoch_ms"] as const;
 const TAB_HEADERS: Record<(typeof LIVE_SHEET_TABS)[number], readonly string[]> = {
   RAW_EARTHQUAKES: RAW_HEADERS,
+  USGS_LIVE_EARTHQUAKES: RAW_HEADERS,
   FEATURES: ["event_id", "feature_as_of_utc", "region", "target_name", "features_json", "created_at"],
   TRAINING_DATA: ["event_id", "target_name", "label", "feature_version", "dataset_version", "created_at"],
   PREDICTIONS: ["prediction_id", "model_version", "region", "target_definition", "probability", "risk_level", "generated_at"],
@@ -105,5 +106,5 @@ export async function readSheetRows(tab: (typeof LIVE_SHEET_TABS)[number]) {
 }
 
 export async function readRawEarthquakeRows() {
-  return readSheetRows("RAW_EARTHQUAKES");
+  return readSheetRows("USGS_LIVE_EARTHQUAKES");
 }

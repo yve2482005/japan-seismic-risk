@@ -19,12 +19,12 @@ from typing import Any
 import numpy as np
 
 try:
-    from .google_sheets_sink import append_derived_records, append_system_log, create_or_prepare_spreadsheet, read_tab_records, replace_derived_tab, upsert_raw_records
+    from .google_sheets_sink import RAW_HEADERS, append_derived_records, append_system_log, create_or_prepare_spreadsheet, read_tab_records, replace_derived_tab, upsert_raw_records
     from .jma_historical_pipeline import JMA_BACKFILL_MONTHS, JMA_SOURCE, download_archive, parse_archive
     from .live_usgs_pipeline import USGS_CSV_URL, download_csv, normalize_usgs_row
     from .train_models import FEATURE_NAMES, STANDARD_TARGETS, build_dataset, parse_time, production_model, regional_feature_vector, train
 except ImportError:
-    from google_sheets_sink import append_derived_records, append_system_log, create_or_prepare_spreadsheet, read_tab_records, replace_derived_tab, upsert_raw_records
+    from google_sheets_sink import RAW_HEADERS, append_derived_records, append_system_log, create_or_prepare_spreadsheet, read_tab_records, replace_derived_tab, upsert_raw_records
     from jma_historical_pipeline import JMA_BACKFILL_MONTHS, JMA_SOURCE, download_archive, parse_archive
     from live_usgs_pipeline import USGS_CSV_URL, download_csv, normalize_usgs_row
     from train_models import FEATURE_NAMES, STANDARD_TARGETS, build_dataset, parse_time, production_model, regional_feature_vector, train
@@ -35,6 +35,8 @@ MIN_POSITIVE_LABELS = 12
 MAX_EXPECTED_CALIBRATION_ERROR = 0.20
 MAX_BRIER_SCORE = 0.25
 JAPAN_REGIONS = ("Hokkaido", "Tohoku", "Kanto", "Chubu", "Kansai", "Chugoku", "Shikoku", "Kyushu", "Okinawa")
+USGS_SOURCE = "U.S. Geological Survey (USGS), ANSS ComCat"
+USGS_LIVE_TAB = "USGS_LIVE_EARTHQUAKES"
 
 
 def require_environment(name: str) -> str:
@@ -62,7 +64,7 @@ def collect(spreadsheet_id: str) -> dict[str, Any]:
         record["normalized_value"] = json.dumps(record["normalized_value"], ensure_ascii=False)
         record["source_updated_epoch_ms"] = item.updated_epoch_ms
         normalized.append(record)
-    outcome = upsert_raw_records(spreadsheet_id, normalized)
+    outcome = upsert_raw_records(spreadsheet_id, normalized, tab=USGS_LIVE_TAB)
     result = {"source": "USGS public monthly CSV", "source_url": USGS_CSV_URL, "rows_in_japan_envelope": len(normalized), "invalid_rejected": invalid, "outside_envelope": outside_japan, **outcome, "completed_at": datetime.now(timezone.utc).isoformat()}
     append_system_log(spreadsheet_id, "collector", "info", "USGS public CSV collection completed", result)
     return result
@@ -109,9 +111,19 @@ def backfill_jma_historical(spreadsheet_id: str) -> dict[str, Any]:
     return result
 
 
-def normalized_records(spreadsheet_id: str, source: str) -> list[dict[str, Any]]:
+def migrate_usgs_live_records(spreadsheet_id: str) -> dict[str, int]:
+    """Copy prior USGS rows to the small dedicated live tab; JMA history remains untouched."""
+    rows = read_tab_records(spreadsheet_id, "RAW_EARTHQUAKES")
+    records = [{header: row.get(header, "") for header in RAW_HEADERS} for row in rows if row.get("source") == USGS_SOURCE]
+    result = upsert_raw_records(spreadsheet_id, records, tab=USGS_LIVE_TAB)
+    result["source_rows_found"] = len(records)
+    append_system_log(spreadsheet_id, "usgs_live_migration", "info", "USGS rows copied to the dedicated live tab; JMA history remains in its source-separated raw tab", result)
+    return result
+
+
+def normalized_records(spreadsheet_id: str, source: str, tab: str = "RAW_EARTHQUAKES") -> list[dict[str, Any]]:
     unique: dict[str, dict[str, Any]] = {}
-    for row in read_tab_records(spreadsheet_id, "RAW_EARTHQUAKES"):
+    for row in read_tab_records(spreadsheet_id, tab):
         if row.get("source") != source or row.get("data_quality") != "validated" or row.get("duplicate_status") not in {"accepted", "updated"}:
             continue
         if row.get("training_eligible") not in {"", "yes"}:
@@ -311,7 +323,7 @@ def train_if_ready(spreadsheet_id: str, records: list[dict[str, Any]], dataset_v
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", choices=("collect", "train", "all", "jma-backfill", "jma-quality-check", "jma-train"), default="all")
+    parser.add_argument("--mode", choices=("collect", "train", "all", "jma-backfill", "jma-quality-check", "jma-train", "migrate-usgs-live"), default="all")
     parser.add_argument("--spreadsheet-id", default=None)
     args = parser.parse_args()
     spreadsheet_id = args.spreadsheet_id or require_environment("GOOGLE_SHEETS_SPREADSHEET_ID")
@@ -320,7 +332,7 @@ def main() -> None:
     if args.mode in {"collect", "all"}:
         output["collection"] = collect(spreadsheet_id)
     if args.mode in {"train", "all"}:
-        records = normalized_records(spreadsheet_id, "U.S. Geological Survey (USGS), ANSS ComCat")
+        records = normalized_records(spreadsheet_id, USGS_SOURCE, tab=USGS_LIVE_TAB)
         output["derived"] = materialize_features(spreadsheet_id, records, "usgs-live-sheet-v1")
         output["training"] = train_if_ready(spreadsheet_id, records, "usgs-live-sheet-v1", allow_promotion=True)
     if args.mode == "jma-backfill":
@@ -334,6 +346,8 @@ def main() -> None:
         records = normalized_records(spreadsheet_id, JMA_SOURCE)
         output["derived"] = materialize_features(spreadsheet_id, records, "jma-historical-bulletin-v1")
         output["training"] = train_if_ready(spreadsheet_id, records, "jma-historical-bulletin-v1", allow_promotion=False)
+    if args.mode == "migrate-usgs-live":
+        output["usgs_live_migration"] = migrate_usgs_live_records(spreadsheet_id)
     print(json.dumps(output, ensure_ascii=False))
 
 

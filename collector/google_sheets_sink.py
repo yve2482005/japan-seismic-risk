@@ -17,10 +17,11 @@ from typing import Any, Iterable
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 
-REQUIRED_TABS = ("RAW_EARTHQUAKES", "FEATURES", "TRAINING_DATA", "PREDICTIONS", "MODEL_METRICS", "SYSTEM_LOG")
+REQUIRED_TABS = ("RAW_EARTHQUAKES", "USGS_LIVE_EARTHQUAKES", "FEATURES", "TRAINING_DATA", "PREDICTIONS", "MODEL_METRICS", "SYSTEM_LOG")
 RAW_HEADERS = ("event_id", "source", "source_url", "origin_time_utc", "local_time_japan", "latitude", "longitude", "depth_km", "magnitude", "magnitude_type", "region", "prefecture", "nearest_city", "event_type", "collection_time", "data_quality", "duplicate_status", "training_eligible", "cross_source_duplicate_status", "raw_value", "normalized_value", "source_updated_epoch_ms")
 TAB_HEADERS = {
     "RAW_EARTHQUAKES": RAW_HEADERS,
+    "USGS_LIVE_EARTHQUAKES": RAW_HEADERS,
     "FEATURES": ("event_id", "feature_as_of_utc", "region", "target_name", "features_json", "created_at"),
     "TRAINING_DATA": ("event_id", "target_name", "label", "feature_version", "dataset_version", "created_at"),
     "PREDICTIONS": ("prediction_id", "model_version", "region", "target_definition", "probability", "risk_level", "generated_at"),
@@ -91,9 +92,11 @@ def create_or_prepare_spreadsheet(title: str, spreadsheet_id: str | None = None,
     return spreadsheet_id
 
 
-def upsert_raw_records(spreadsheet_id: str, records: Iterable[dict[str, Any]]) -> dict[str, int]:
+def upsert_raw_records(spreadsheet_id: str, records: Iterable[dict[str, Any]], tab: str = "RAW_EARTHQUAKES") -> dict[str, int]:
+    if tab not in {"RAW_EARTHQUAKES", "USGS_LIVE_EARTHQUAKES"}:
+        raise ValueError(f"Unsupported raw-record tab: {tab}")
     service = sheet_service()
-    current = service.spreadsheets().values().get(spreadsheetId=spreadsheet_id, range="RAW_EARTHQUAKES!A2:V").execute().get("values", [])
+    current = service.spreadsheets().values().get(spreadsheetId=spreadsheet_id, range=f"{tab}!A2:V").execute().get("values", [])
     updated_index = RAW_HEADERS.index("source_updated_epoch_ms")
     index = {row[0]: (position + 2, int(float(row[updated_index])) if len(row) > updated_index and row[updated_index] else -1) for position, row in enumerate(current) if row}
     appended = updated = unchanged = 0
@@ -107,7 +110,7 @@ def upsert_raw_records(spreadsheet_id: str, records: Iterable[dict[str, Any]]) -
             unchanged += 1
         elif event_id in index:
             row_number = index[event_id][0]
-            update_data.append({"range": f"RAW_EARTHQUAKES!A{row_number}:V{row_number}", "values": [values]})
+            update_data.append({"range": f"{tab}!A{row_number}:V{row_number}", "values": [values]})
             updated += 1
         else:
             append_rows.append(values)
@@ -116,7 +119,7 @@ def upsert_raw_records(spreadsheet_id: str, records: Iterable[dict[str, Any]]) -
         service.spreadsheets().values().batchUpdate(spreadsheetId=spreadsheet_id, body={"valueInputOption": "RAW", "data": update_data}).execute()
     for offset in range(0, len(append_rows), RAW_APPEND_BATCH_SIZE):
         batch = append_rows[offset:offset + RAW_APPEND_BATCH_SIZE]
-        service.spreadsheets().values().append(spreadsheetId=spreadsheet_id, range="RAW_EARTHQUAKES!A:V", valueInputOption="RAW", insertDataOption="INSERT_ROWS", body={"values": batch}).execute()
+        service.spreadsheets().values().append(spreadsheetId=spreadsheet_id, range=f"{tab}!A:V", valueInputOption="RAW", insertDataOption="INSERT_ROWS", body={"values": batch}).execute()
         if offset + RAW_APPEND_BATCH_SIZE < len(append_rows):
             time.sleep(1.05)
     return {"appended": appended, "updated": updated, "unchanged": unchanged}
