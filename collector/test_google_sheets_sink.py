@@ -75,3 +75,11 @@ class GoogleSheetsBatchTests(unittest.TestCase):
         self.assertEqual(len(service.values_api.append_calls), 1)
         self.assertEqual(len(service.values_api.append_calls[0]["body"]["values"]), 122)
         self.assertEqual(service.values_api.batch_update_calls, [])
+
+    def test_large_backfill_is_batched_without_exceeding_the_configured_append_size(self):
+        service = _FakeService()
+        records = [{"event_id": f"event-{index}", "source_updated_epoch_ms": index} for index in range(801)]
+        with patch("collector.google_sheets_sink.sheet_service", return_value=service), patch("collector.google_sheets_sink.time.sleep"):
+            result = upsert_raw_records("sheet-id", records)
+        self.assertEqual(result["appended"], 801)
+        self.assertEqual([len(call["body"]["values"]) for call in service.values_api.append_calls], [400, 400, 1])

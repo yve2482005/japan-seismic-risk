@@ -19,10 +19,12 @@ import numpy as np
 
 try:
     from .google_sheets_sink import append_derived_records, append_system_log, create_or_prepare_spreadsheet, read_tab_records, replace_derived_tab, upsert_raw_records
+    from .jma_historical_pipeline import JMA_BACKFILL_MONTHS, JMA_SOURCE, download_archive, parse_archive
     from .live_usgs_pipeline import USGS_CSV_URL, download_csv, normalize_usgs_row
     from .train_models import FEATURE_NAMES, STANDARD_TARGETS, build_dataset, parse_time, train
 except ImportError:
     from google_sheets_sink import append_derived_records, append_system_log, create_or_prepare_spreadsheet, read_tab_records, replace_derived_tab, upsert_raw_records
+    from jma_historical_pipeline import JMA_BACKFILL_MONTHS, JMA_SOURCE, download_archive, parse_archive
     from live_usgs_pipeline import USGS_CSV_URL, download_csv, normalize_usgs_row
     from train_models import FEATURE_NAMES, STANDARD_TARGETS, build_dataset, parse_time, train
 
@@ -64,10 +66,53 @@ def collect(spreadsheet_id: str) -> dict[str, Any]:
     return result
 
 
-def normalized_records(spreadsheet_id: str) -> list[dict[str, Any]]:
+def _cross_source_duplicate_status(record: dict[str, Any], usgs_rows: list[dict[str, str]]) -> str:
+    """Flag likely USGS matches without deleting either source's original record."""
+    origin = parse_time(record["origin_time_utc"])
+    for row in usgs_rows:
+        if not row.get("source", "").startswith("U.S. Geological Survey"):
+            continue
+        try:
+            time_gap = abs((origin - parse_time(row["origin_time_utc"])).total_seconds())
+            latitude_gap = abs(float(record["latitude"]) - float(row["latitude"]))
+            longitude_gap = abs(float(record["longitude"]) - float(row["longitude"]))
+            magnitude_gap = abs(float(record["magnitude"]) - float(row["magnitude"]))
+        except (KeyError, ValueError):
+            continue
+        if time_gap <= 60 and latitude_gap <= 0.1 and longitude_gap <= 0.1 and magnitude_gap <= 0.5:
+            return "possible_usgs_match_retained_source_separated"
+    return "no_usgs_match_checked"
+
+
+def backfill_jma_historical(spreadsheet_id: str) -> dict[str, Any]:
+    """Run the owner-approved static ZIP import; it does not alter USGS live collection."""
+    existing_rows = read_tab_records(spreadsheet_id, "RAW_EARTHQUAKES")
+    records: list[dict[str, Any]] = []
+    totals = {"invalid_rejected": 0, "outside_envelope": 0, "within_source_duplicates": 0, "cross_source_matches_retained": 0}
+    periods: list[str] = []
+    for year, month in JMA_BACKFILL_MONTHS:
+        periods.append(f"{year:04d}-{month:02d}")
+        parsed, failures = parse_archive(year, month, download_archive(year, month), datetime.now(timezone.utc))
+        totals["invalid_rejected"] += failures["invalid_rows"]
+        totals["outside_envelope"] += failures["outside_envelope"]
+        totals["within_source_duplicates"] += failures["within_source_duplicates"]
+        for record in parsed:
+            record["cross_source_duplicate_status"] = _cross_source_duplicate_status(record, existing_rows)
+            if record["cross_source_duplicate_status"] != "no_usgs_match_checked":
+                totals["cross_source_matches_retained"] += 1
+        records.extend(parsed)
+    outcome = upsert_raw_records(spreadsheet_id, records)
+    result = {"source": JMA_SOURCE, "source_kind": "historical_static_zip_backfill_not_live", "archive_periods": periods, "records_parsed": len(records), **totals, **outcome, "completed_at": datetime.now(timezone.utc).isoformat()}
+    append_system_log(spreadsheet_id, "jma_backfill", "info", "JMA historical ZIP backfill completed; records remain source-separated from USGS live observations", result)
+    return result
+
+
+def normalized_records(spreadsheet_id: str, source: str) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     for row in read_tab_records(spreadsheet_id, "RAW_EARTHQUAKES"):
-        if row.get("data_quality") != "validated" or row.get("duplicate_status") not in {"accepted", "updated"}:
+        if row.get("source") != source or row.get("data_quality") != "validated" or row.get("duplicate_status") not in {"accepted", "updated"}:
+            continue
+        if row.get("training_eligible") not in {"", "yes"}:
             continue
         try:
             records.append({"event_id": row["event_id"], "origin_time_utc": row["origin_time_utc"], "latitude": float(row["latitude"]), "longitude": float(row["longitude"]), "depth_km": float(row["depth_km"]) if row.get("depth_km") else None, "magnitude": float(row["magnitude"]) if row.get("magnitude") else None, "region": row["region"]})
@@ -76,7 +121,7 @@ def normalized_records(spreadsheet_id: str) -> list[dict[str, Any]]:
     return sorted(records, key=lambda record: parse_time(record["origin_time_utc"]))
 
 
-def materialize_features(spreadsheet_id: str, records: list[dict[str, Any]]) -> dict[str, int]:
+def materialize_features(spreadsheet_id: str, records: list[dict[str, Any]], dataset_version: str) -> dict[str, int]:
     if not records:
         return {"features": 0, "training_rows": 0}
     features, labels = build_dataset(records, STANDARD_TARGETS[0])
@@ -86,7 +131,7 @@ def materialize_features(spreadsheet_id: str, records: list[dict[str, Any]]) -> 
     for record, values, label in zip(records, features.tolist(), labels.tolist(), strict=True):
         safe_features = {name: None if not np.isfinite(value) else float(value) for name, value in zip(FEATURE_NAMES, values, strict=True)}
         feature_rows.append({"event_id": record["event_id"], "feature_as_of_utc": record["origin_time_utc"], "region": record["region"], "target_name": "M4_NEXT_24H_REGION", "features_json": json.dumps(safe_features), "created_at": now})
-        training_rows.append({"event_id": record["event_id"], "target_name": "M4_NEXT_24H_REGION", "label": int(label), "feature_version": "chronological-v1", "dataset_version": "live-sheet-v1", "created_at": now})
+        training_rows.append({"event_id": record["event_id"], "target_name": "M4_NEXT_24H_REGION", "label": int(label), "feature_version": "chronological-v1", "dataset_version": dataset_version, "created_at": now})
     return {"features": replace_derived_tab(spreadsheet_id, "FEATURES", feature_rows), "training_rows": replace_derived_tab(spreadsheet_id, "TRAINING_DATA", training_rows)}
 
 
@@ -175,7 +220,7 @@ def promote_rows(candidates: list[dict[str, Any]], existing_rows: list[dict[str,
     return retired, promoted
 
 
-def train_if_ready(spreadsheet_id: str, records: list[dict[str, Any]]) -> dict[str, Any]:
+def train_if_ready(spreadsheet_id: str, records: list[dict[str, Any]], dataset_version: str, allow_promotion: bool) -> dict[str, Any]:
     passed, gate = quality_gate(records)
     if not passed:
         append_system_log(spreadsheet_id, "training", "info", "Training deferred: quality gate not met", gate)
@@ -195,23 +240,23 @@ def train_if_ready(spreadsheet_id: str, records: list[dict[str, Any]]) -> dict[s
         report = json.loads(output_path.read_text(encoding="utf-8"))
         for algorithm, result in report["models"].items():
             test = result["test"]
-            rows.append({"model_version": f"{algorithm}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}", "algorithm": algorithm, "target_definition": target_name, "dataset_version": "live-sheet-v1", "metrics_json": json.dumps(test), "calibration_json": json.dumps(test["calibration"]), "status": "candidate", "trained_at": report["generated_at"]})
+            rows.append({"model_version": f"{algorithm}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}", "algorithm": algorithm, "target_definition": target_name, "dataset_version": dataset_version, "metrics_json": json.dumps(test), "calibration_json": json.dumps(test["calibration"]), "status": "candidate" if allow_promotion else "candidate_source_separated", "trained_at": report["generated_at"]})
     if not rows:
         result = {"status": "deferred_class_diversity", "deferred_targets": deferred_targets, **gate}
         append_system_log(spreadsheet_id, "training", "info", "Training deferred: no target had sufficient chronological class diversity", result)
         return result
     existing_rows = read_tab_records(spreadsheet_id, "MODEL_METRICS")
     promoted_at = datetime.now(timezone.utc).isoformat()
-    retired_rows, promoted = promote_rows(rows, existing_rows, promoted_at)
+    retired_rows, promoted = promote_rows(rows, existing_rows, promoted_at) if allow_promotion else ([], 0)
     append_derived_records(spreadsheet_id, "MODEL_METRICS", [*rows, *retired_rows])
-    result = {"status": "production_models_promoted" if promoted else "candidate_reports_generated", "reports": len(rows), "promoted_models": promoted, "deferred_targets": deferred_targets, "promotion_thresholds": {"max_brier_score": MAX_BRIER_SCORE, "max_expected_calibration_error": MAX_EXPECTED_CALIBRATION_ERROR}, **gate}
-    append_system_log(spreadsheet_id, "training", "info", "Chronological candidate reports evaluated for promotion", result)
+    result = {"status": "production_models_promoted" if promoted else ("candidate_reports_generated" if allow_promotion else "candidate_reports_source_separated"), "dataset_version": dataset_version, "reports": len(rows), "promoted_models": promoted, "deferred_targets": deferred_targets, "promotion_thresholds": {"max_brier_score": MAX_BRIER_SCORE, "max_expected_calibration_error": MAX_EXPECTED_CALIBRATION_ERROR}, **gate}
+    append_system_log(spreadsheet_id, "training", "info", "Chronological candidate reports evaluated without cross-source record mixing", result)
     return result
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", choices=("collect", "train", "all"), default="all")
+    parser.add_argument("--mode", choices=("collect", "train", "all", "jma-backfill", "jma-train"), default="all")
     parser.add_argument("--spreadsheet-id", default=None)
     args = parser.parse_args()
     spreadsheet_id = args.spreadsheet_id or require_environment("GOOGLE_SHEETS_SPREADSHEET_ID")
@@ -220,9 +265,15 @@ def main() -> None:
     if args.mode in {"collect", "all"}:
         output["collection"] = collect(spreadsheet_id)
     if args.mode in {"train", "all"}:
-        records = normalized_records(spreadsheet_id)
-        output["derived"] = materialize_features(spreadsheet_id, records)
-        output["training"] = train_if_ready(spreadsheet_id, records)
+        records = normalized_records(spreadsheet_id, "U.S. Geological Survey (USGS), ANSS ComCat")
+        output["derived"] = materialize_features(spreadsheet_id, records, "usgs-live-sheet-v1")
+        output["training"] = train_if_ready(spreadsheet_id, records, "usgs-live-sheet-v1", allow_promotion=True)
+    if args.mode == "jma-backfill":
+        output["jma_backfill"] = backfill_jma_historical(spreadsheet_id)
+    if args.mode == "jma-train":
+        records = normalized_records(spreadsheet_id, JMA_SOURCE)
+        output["derived"] = materialize_features(spreadsheet_id, records, "jma-historical-bulletin-v1")
+        output["training"] = train_if_ready(spreadsheet_id, records, "jma-historical-bulletin-v1", allow_promotion=False)
     print(json.dumps(output, ensure_ascii=False))
 
 

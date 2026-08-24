@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildLiveSnapshot } from "./liveSnapshot";
+import { buildLiveSnapshot, liveUsgsRows } from "./liveSnapshot";
 
 describe("live Sheets snapshot", () => {
   it("uses only validated source rows and never substitutes a probability before a model is available", () => {
@@ -19,5 +19,13 @@ describe("live Sheets snapshot", () => {
     ];
     const snapshot = buildLiveSnapshot(source, new Date("2026-08-23T12:00:00Z"), predictions, "production-v1");
     expect(snapshot.regions.find(region => region.region === "Kyushu")).toMatchObject({ probabilityM4_24h: 12, probabilityM5_7d: 3, risk: "MODERATE" });
+  });
+
+  it("keeps source-separated JMA historical rows out of the live USGS activity feed", () => {
+    const rows = [
+      { event_id: "us-live", source: "U.S. Geological Survey (USGS), ANSS ComCat", origin_time_utc: "2026-08-23T00:00:00Z" },
+      { event_id: "jma-history", source: "Japan Meteorological Agency (JMA) Seismological Bulletin", origin_time_utc: "2023-12-01T00:00:00Z" },
+    ];
+    expect(liveUsgsRows(rows).map(row => row.event_id)).toEqual(["us-live"]);
   });
 });
