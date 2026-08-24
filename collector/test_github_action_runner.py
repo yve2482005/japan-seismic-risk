@@ -2,7 +2,7 @@ import json
 import unittest
 from unittest.mock import patch
 
-from collector.github_action_runner import materialize_features, positive_label_count, promote_rows, quality_gate, select_production_candidate
+from collector.github_action_runner import materialize_features, normalized_records, positive_label_count, promote_rows, quality_gate, select_production_candidate
 
 
 class GitHubActionRunnerTests(unittest.TestCase):
@@ -29,6 +29,14 @@ class GitHubActionRunnerTests(unittest.TestCase):
             {"event_id": "three", "origin_time_utc": "2025-01-03T00:00:00Z", "latitude": 32.2, "longitude": 132.0, "depth_km": 10, "magnitude": 4.1, "region": "Kyushu"},
         ]
         self.assertEqual(positive_label_count(records, __import__("collector.train_models", fromlist=["TargetConfig"]).TargetConfig()), 1)
+
+    def test_normalized_records_removes_repeated_source_event_ids_before_training(self):
+        rows = [
+            {"event_id": "same", "source": "JMA", "data_quality": "validated", "duplicate_status": "accepted", "training_eligible": "yes", "origin_time_utc": "2025-01-01T00:00:00Z", "latitude": "32", "longitude": "132", "depth_km": "10", "magnitude": "3", "region": "Kyushu"},
+            {"event_id": "same", "source": "JMA", "data_quality": "validated", "duplicate_status": "accepted", "training_eligible": "yes", "origin_time_utc": "2025-01-01T00:00:00Z", "latitude": "32", "longitude": "132", "depth_km": "10", "magnitude": "3", "region": "Kyushu"},
+        ]
+        with patch("collector.github_action_runner.read_tab_records", return_value=rows):
+            self.assertEqual(len(normalized_records("sheet", "JMA")), 1)
 
     def test_selects_only_the_best_calibrated_candidate_for_production(self):
         def candidate(pr_auc: float, brier: float, ece: float):

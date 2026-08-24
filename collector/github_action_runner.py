@@ -109,17 +109,22 @@ def backfill_jma_historical(spreadsheet_id: str) -> dict[str, Any]:
 
 
 def normalized_records(spreadsheet_id: str, source: str) -> list[dict[str, Any]]:
-    records: list[dict[str, Any]] = []
+    unique: dict[str, dict[str, Any]] = {}
     for row in read_tab_records(spreadsheet_id, "RAW_EARTHQUAKES"):
         if row.get("source") != source or row.get("data_quality") != "validated" or row.get("duplicate_status") not in {"accepted", "updated"}:
             continue
         if row.get("training_eligible") not in {"", "yes"}:
             continue
         try:
-            records.append({"event_id": row["event_id"], "origin_time_utc": row["origin_time_utc"], "latitude": float(row["latitude"]), "longitude": float(row["longitude"]), "depth_km": float(row["depth_km"]) if row.get("depth_km") else None, "magnitude": float(row["magnitude"]) if row.get("magnitude") else None, "region": row["region"]})
+            unique.setdefault(row["event_id"], {"event_id": row["event_id"], "origin_time_utc": row["origin_time_utc"], "latitude": float(row["latitude"]), "longitude": float(row["longitude"]), "depth_km": float(row["depth_km"]) if row.get("depth_km") else None, "magnitude": float(row["magnitude"]) if row.get("magnitude") else None, "region": row["region"]})
         except (KeyError, ValueError):
             continue
-    return sorted(records, key=lambda record: parse_time(record["origin_time_utc"]))
+    return sorted(unique.values(), key=lambda record: parse_time(record["origin_time_utc"]))
+
+
+def source_quality_summary(spreadsheet_id: str, source: str) -> dict[str, int]:
+    rows = [row for row in read_tab_records(spreadsheet_id, "RAW_EARTHQUAKES") if row.get("source") == source and row.get("data_quality") == "validated" and row.get("duplicate_status") in {"accepted", "updated"}]
+    return {"raw_rows": len(rows), "unique_event_ids": len({row.get("event_id") for row in rows}), "duplicate_rows_removed_for_training": len(rows) - len({row.get("event_id") for row in rows})}
 
 
 def materialize_features(spreadsheet_id: str, records: list[dict[str, Any]], dataset_version: str) -> dict[str, int]:
@@ -289,7 +294,7 @@ def main() -> None:
     if args.mode == "jma-quality-check":
         records = normalized_records(spreadsheet_id, JMA_SOURCE)
         passed, gate = quality_gate(records)
-        output["jma_quality_check"] = {"status": "jma_source_separated_quality_gate_satisfied" if passed else "deferred_quality_gate", "dataset_version": "jma-historical-bulletin-v1", "metrics_reported": False, "probabilities_reported": False, **gate}
+        output["jma_quality_check"] = {"status": "jma_source_separated_quality_gate_satisfied" if passed else "deferred_quality_gate", "dataset_version": "jma-historical-bulletin-v1", "metrics_reported": False, "probabilities_reported": False, **source_quality_summary(spreadsheet_id, JMA_SOURCE), **gate}
         append_system_log(spreadsheet_id, "jma_quality_check", "info", "JMA-only quality gate evaluated without model training or metrics", output["jma_quality_check"])
     print(json.dumps(output, ensure_ascii=False))
 
