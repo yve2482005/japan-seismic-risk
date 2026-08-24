@@ -34,9 +34,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: pnpm
-      - name: Install background notification sender
-        run: corepack enable && pnpm install --frozen-lockfile
       - name: Deliver deduplicated opt-in browser push notifications
         env:
           PUSH_DELIVERY_URL: https://japanseismic-269jnxjv.manus.space/api/internal/push-delivery

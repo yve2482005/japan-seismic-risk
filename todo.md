@@ -110,3 +110,4 @@
 - [ ] Publish the GitHub OIDC-authenticated workflow step and sealed server-side VAPID sender so qualifying new USGS alerts can be delivered without a long-lived workflow secret.
 - [x] Add delivery status, invalid-subscription cleanup, and source/magnitude/region safeguards without exposing subscription endpoints.
 - [ ] Verify one end-to-end background notification delivery on an opted-in user device after the updated workflow is published.
+- [ ] Remove the unnecessary pnpm cache dependency from the GitHub Actions OIDC delivery step and re-verify one manual collection run.
