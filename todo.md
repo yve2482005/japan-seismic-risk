@@ -115,3 +115,4 @@
 - [x] Add an explicit subscription activation and recent-alert cutoff so a new device cannot receive historical alert backlog.
 - [x] Replace the M6+ foreground sound preview with a louder siren-style pattern while preserving browser and device volume limits.
 - [x] Add a distinct user-testable foreground alert sound for M4.0–M5.9 events while retaining the M6+ siren.
+- [x] Add an accessible red visual alert effect that accompanies foreground alert sounds and respects reduced-motion preferences.

@@ -1,6 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { approximateDistanceKm } from "@/lib/geo";
 import { magnitudeSoundLabel, playMagnitudeSound } from "@/lib/notificationSounds";
+import { showVisualAlert } from "@/lib/visualAlert";
 import { getBrowserPushSubscription, removeBrowserPushSubscription } from "@/lib/webPush";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
@@ -54,7 +55,8 @@ export default function Alerts() {
     incoming.forEach(alert => seededAlertIds.current!.add(alert.alertId));
     if (!preferences.sound || !fresh.length) return;
     const strongest = Math.max(...fresh.map(alert => alert.eventMagnitude));
-    if (!playMagnitudeSound(strongest)) setSoundMessage("This browser cannot play an in-app sound. You can still view the alert history.");
+    if (playMagnitudeSound(strongest)) showVisualAlert(strongest);
+    else setSoundMessage("This browser cannot play an in-app sound. You can still view the alert history.");
   }, [preferences.sound, snapshot.data?.alerts]);
 
   const alerts = useMemo(() => (snapshot.data?.alerts ?? []).filter(alert => alert.eventMagnitude >= preferences.minimumMagnitude && preferences.regions.includes(alert.region)), [snapshot.data?.alerts, preferences]);
@@ -86,7 +88,11 @@ export default function Alerts() {
     );
   };
   const toggleRegion = (region: JapanRegion) => update({ regions: preferences.regions.includes(region) ? preferences.regions.filter(value => value !== region) : [...preferences.regions, region] });
-  const testSound = (magnitude: number) => setSoundMessage(playMagnitudeSound(magnitude) ? `${magnitudeSoundLabel(magnitude)} preview played.` : "This browser cannot play an in-app sound. Check device/browser sound settings.");
+  const testSound = (magnitude: number) => {
+    const played = playMagnitudeSound(magnitude);
+    if (played) showVisualAlert(magnitude);
+    setSoundMessage(played ? `${magnitudeSoundLabel(magnitude)} preview played with a red visual alert.` : "This browser cannot play an in-app sound. Check device/browser sound settings.");
+  };
 
   return <main className="min-h-screen bg-[#f5f7f8] text-slate-950"><header className="border-b border-slate-200 bg-white"><div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-5 py-4 sm:px-8"><Link href="/" className="inline-flex items-center gap-2 text-sm font-black"><ArrowLeft size={17} />Live monitor</Link><p className="text-xs font-bold text-slate-500">Earthquake detection alerts</p></div></header><div className="mx-auto max-w-4xl px-5 py-7 sm:px-8 sm:py-10">
     <section className="rounded-3xl bg-slate-950 p-6 text-white"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-extrabold tracking-[0.18em] text-slate-400">ALERTS</p><h1 className="mt-2 text-3xl font-black tracking-tight">ငလျင်တွေ့ရှိမှု အသိပေးချက်</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">ဤစာရင်းသည် USGS live source မှ threshold ပြည့်သော event များသာဖြစ်ပြီး prediction သို့မဟုတ် တရားဝင်သတိပေးချက် မဟုတ်ပါ။</p></div><BellRing className="shrink-0 text-[#c8dded]" size={28} /></div></section>

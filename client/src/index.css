@@ -40,3 +40,10 @@ button:focus-visible, [role="button"]:focus-visible { outline: 2px solid #111; o
 
 @media (prefers-reduced-motion: no-preference) { button, .map-shell circle { transition-timing-function: cubic-bezier(.23, 1, .32, 1); } button:active { transform: scale(.97); } }
 @media (max-width: 640px) { .accent-blue { right: -55px; top: 220px; width: 115px; height: 115px; } .accent-pink { top: 580px; opacity: .48; } }
+
+.seismic-visual-alert { position: fixed; inset: 0; z-index: 100; display: flex; align-items: flex-start; justify-content: center; padding: max(1.25rem, env(safe-area-inset-top)) 1rem 1rem; pointer-events: none; border: 10px solid rgba(220, 38, 38, .94); box-shadow: inset 0 0 0 5px rgba(255,255,255,.82), inset 0 0 58px rgba(220, 38, 38, .52); background: rgba(220, 38, 38, .12); color: #fff; font-size: .875rem; font-weight: 900; text-align: center; text-shadow: 0 1px 3px rgba(0,0,0,.7); animation: seismic-alert-flash 1.65s cubic-bezier(.23, 1, .32, 1) both; }
+.seismic-visual-alert::before { content: ""; position: absolute; inset: 0; background: rgba(255,255,255,.35); animation: seismic-alert-flash 1.65s cubic-bezier(.23, 1, .32, 1) both; }
+.seismic-visual-alert { isolation: isolate; }
+.seismic-visual-alert::after { content: ""; position: absolute; z-index: -1; top: max(1.25rem, env(safe-area-inset-top)); width: min(90vw, 32rem); height: 2.3rem; border-radius: 999px; background: rgba(127, 29, 29, .92); box-shadow: 0 8px 22px rgba(69, 10, 10, .34); }
+@keyframes seismic-alert-flash { 0%, 100% { opacity: 0; } 12%, 36%, 62% { opacity: 1; } 24%, 49%, 78% { opacity: .28; } }
+@media (prefers-reduced-motion: reduce) { .seismic-visual-alert, .seismic-visual-alert::before { animation: none; opacity: 1; } }
