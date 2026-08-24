@@ -130,3 +130,4 @@
 - [x] Add a subtle reduced-motion-aware pulse to the non-hazard 100 km map reference ring.
 - [x] Run the approved USGS live collection and processing workflow once immediately, then verify its truthful outcome without weakening source or model safeguards.
 - [x] Extend the M6.0+ foreground siren preview to a louder five-second pattern while retaining visual-only mute behavior.
+- [x] Add a dedicated non-event Test Siren control so users can preview the current five-second M6+ sound from settings.

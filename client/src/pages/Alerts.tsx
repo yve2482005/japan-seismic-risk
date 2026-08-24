@@ -196,6 +196,15 @@ export default function Alerts() {
     );
   };
 
+  const testSiren = () => {
+    const played = playMagnitudeSound(6);
+    setSoundMessage(
+      played
+        ? "Test Siren: 5-second M6.0+ siren preview is playing. This is only a sound test; no alert or notification was created."
+        : "Test Siren could not start sound in this browser. Check browser or device audio settings.",
+    );
+  };
+
   const runTestAlert = () => {
     const magnitude = preferences.foregroundMinimumMagnitude;
     const mode = testAlertMode(preferences.sound, preferences.visualOnly);
@@ -294,6 +303,7 @@ export default function Alerts() {
             <p className="flex items-center gap-2 text-sm font-black"><Volume2 size={16} />Magnitude sound preview</p>
             <p className="mt-1 text-xs leading-5 text-slate-600">App ဖွင့်ထားချိန်တွင်သာ in-app sound နှင့် visual alert ရနိုင်ပါသည်။ Test button ကိုနှိပ်၍ အသံကွဲပြားမှု စမ်းပါ—အသံသည် official warning level မဟုတ်ပါ။</p>
             <div className="mt-3 flex flex-wrap gap-2">
+              <button onClick={testSiren} className="rounded-xl bg-[#b42318] px-3 py-2 text-xs font-black text-white shadow-sm hover:bg-[#8f1d14]"><Volume2 className="mr-1 inline" size={14} />Test Siren (5 seconds)</button>
               {[4, 6].map(magnitude => <button key={magnitude} onClick={() => testSound(magnitude)} className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold hover:border-slate-950">Test {magnitudeSoundLabel(magnitude)}</button>)}
             </div>
             <p role="status" className="mt-2 text-xs font-medium text-slate-600">{soundMessage}</p>
