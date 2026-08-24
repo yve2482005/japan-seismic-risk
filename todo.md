@@ -121,3 +121,4 @@
 - [x] Add a local-only nearby-location radius filter for foreground alerts without sending precise location to the server or changing background-push delivery.
 - [x] Add a one-tap Test Alert control that exercises current foreground sound, visual-only mute, and visual effect settings without creating a real alert.
 - [x] Add a saved user-selectable dark mode that preserves alert visibility and low-light readability across the application.
+- [x] Improve the live USGS earthquake map view so users can clearly locate and inspect plotted event markers without implying official warning coverage.
