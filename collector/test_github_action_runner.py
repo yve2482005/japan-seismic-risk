@@ -2,7 +2,7 @@ import json
 import unittest
 from unittest.mock import patch
 
-from collector.github_action_runner import materialize_features, promote_rows, quality_gate, select_production_candidate
+from collector.github_action_runner import materialize_features, positive_label_count, promote_rows, quality_gate, select_production_candidate
 
 
 class GitHubActionRunnerTests(unittest.TestCase):
@@ -21,6 +21,14 @@ class GitHubActionRunnerTests(unittest.TestCase):
         passed, detail = quality_gate(records)
         self.assertFalse(passed)
         self.assertEqual(detail["records"], 1)
+
+    def test_fast_positive_label_count_matches_the_chronological_future_window_definition(self):
+        records = [
+            {"event_id": "one", "origin_time_utc": "2025-01-01T00:00:00Z", "latitude": 32.2, "longitude": 132.0, "depth_km": 10, "magnitude": 2.5, "region": "Kyushu"},
+            {"event_id": "two", "origin_time_utc": "2025-01-01T12:00:00Z", "latitude": 32.2, "longitude": 132.0, "depth_km": 10, "magnitude": 4.2, "region": "Kyushu"},
+            {"event_id": "three", "origin_time_utc": "2025-01-03T00:00:00Z", "latitude": 32.2, "longitude": 132.0, "depth_km": 10, "magnitude": 4.1, "region": "Kyushu"},
+        ]
+        self.assertEqual(positive_label_count(records, __import__("collector.train_models", fromlist=["TargetConfig"]).TargetConfig()), 1)
 
     def test_selects_only_the_best_calibrated_candidate_for_production(self):
         def candidate(pr_auc: float, brier: float, ece: float):

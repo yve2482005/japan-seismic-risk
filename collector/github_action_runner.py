@@ -7,6 +7,7 @@ credentials and makes no earthquake API request.
 from __future__ import annotations
 
 import argparse
+import bisect
 import csv
 import io
 import json
@@ -139,10 +140,25 @@ def quality_gate(records: list[dict[str, Any]]) -> tuple[bool, dict[str, Any]]:
     if not records:
         return False, {"reason": "no validated records"}
     history_days = (parse_time(records[-1]["origin_time_utc"]) - parse_time(records[0]["origin_time_utc"])).total_seconds() / 86400
-    labels = build_dataset(records, STANDARD_TARGETS[0])[1]
-    positives = int(labels.sum())
+    positives = positive_label_count(records, STANDARD_TARGETS[0])
     passed = len(records) >= MIN_TRAINING_RECORDS and history_days >= MIN_HISTORY_DAYS and positives >= MIN_POSITIVE_LABELS
     return passed, {"records": len(records), "history_days": round(history_days, 2), "positive_labels": positives, "minimum_records": MIN_TRAINING_RECORDS, "minimum_history_days": MIN_HISTORY_DAYS, "minimum_positive_labels": MIN_POSITIVE_LABELS}
+
+
+def positive_label_count(records: list[dict[str, Any]], target: Any) -> int:
+    """Count the same future regional labels as build_dataset without materializing O(n²) features."""
+    by_region: dict[str, list[dict[str, Any]]] = {}
+    for record in sorted(records, key=lambda item: parse_time(item["origin_time_utc"])):
+        by_region.setdefault(record["region"], []).append(record)
+    positives = 0
+    for region_records in by_region.values():
+        qualifying_times = [parse_time(record["origin_time_utc"]).timestamp() for record in region_records if float(record.get("magnitude") or -99) >= target.magnitude_threshold]
+        for record in region_records:
+            anchor = parse_time(record["origin_time_utc"]).timestamp()
+            first_future = bisect.bisect_right(qualifying_times, anchor)
+            if first_future < len(qualifying_times) and qualifying_times[first_future] <= anchor + target.horizon_hours * 3600:
+                positives += 1
+    return positives
 
 
 def select_production_candidate(rows: list[dict[str, Any]]) -> int | None:
@@ -256,7 +272,7 @@ def train_if_ready(spreadsheet_id: str, records: list[dict[str, Any]], dataset_v
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", choices=("collect", "train", "all", "jma-backfill", "jma-train"), default="all")
+    parser.add_argument("--mode", choices=("collect", "train", "all", "jma-backfill", "jma-quality-check"), default="all")
     parser.add_argument("--spreadsheet-id", default=None)
     args = parser.parse_args()
     spreadsheet_id = args.spreadsheet_id or require_environment("GOOGLE_SHEETS_SPREADSHEET_ID")
@@ -270,10 +286,11 @@ def main() -> None:
         output["training"] = train_if_ready(spreadsheet_id, records, "usgs-live-sheet-v1", allow_promotion=True)
     if args.mode == "jma-backfill":
         output["jma_backfill"] = backfill_jma_historical(spreadsheet_id)
-    if args.mode == "jma-train":
+    if args.mode == "jma-quality-check":
         records = normalized_records(spreadsheet_id, JMA_SOURCE)
-        output["derived"] = materialize_features(spreadsheet_id, records, "jma-historical-bulletin-v1")
-        output["training"] = train_if_ready(spreadsheet_id, records, "jma-historical-bulletin-v1", allow_promotion=False)
+        passed, gate = quality_gate(records)
+        output["jma_quality_check"] = {"status": "jma_source_separated_quality_gate_satisfied" if passed else "deferred_quality_gate", "dataset_version": "jma-historical-bulletin-v1", "metrics_reported": False, "probabilities_reported": False, **gate}
+        append_system_log(spreadsheet_id, "jma_quality_check", "info", "JMA-only quality gate evaluated without model training or metrics", output["jma_quality_check"])
     print(json.dumps(output, ensure_ascii=False))
 
 

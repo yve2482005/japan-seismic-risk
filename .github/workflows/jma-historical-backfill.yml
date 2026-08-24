@@ -28,5 +28,5 @@ jobs:
         run: python -m pip install --disable-pip-version-check -r collector/requirements.txt
       - name: Import the approved static JMA historical ZIP artifacts
         run: python collector/github_action_runner.py --mode jma-backfill
-      - name: Materialize JMA-only chronological features and run its quality gate
-        run: python collector/github_action_runner.py --mode jma-train
+      - name: Run the exact JMA-only quality gate without model training or metrics
+        run: python collector/github_action_runner.py --mode jma-quality-check
