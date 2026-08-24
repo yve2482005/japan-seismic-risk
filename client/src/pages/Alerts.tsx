@@ -1,7 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
 import { approximateDistanceKm } from "@/lib/geo";
-import { isForegroundAlertThreshold, shouldTriggerForegroundAlert, type ForegroundAlertThreshold } from "@/lib/foregroundAlerts";
+import { isForegroundAlertThreshold, shouldPlayForegroundSound, shouldTriggerForegroundAlert, type ForegroundAlertThreshold } from "@/lib/foregroundAlerts";
 import { magnitudeSoundLabel, playMagnitudeSound } from "@/lib/notificationSounds";
 import { trpc } from "@/lib/trpc";
 import { showVisualAlert } from "@/lib/visualAlert";
@@ -14,6 +14,7 @@ import { Link } from "wouter";
 type Preferences = {
   minimumMagnitude: ForegroundAlertThreshold;
   foregroundMinimumMagnitude: ForegroundAlertThreshold;
+  visualOnly: boolean;
   regions: JapanRegion[];
   sound: boolean;
   vibration: boolean;
@@ -26,6 +27,7 @@ const KEY = "japan-seismic-alert-preferences-v1";
 const defaults: Preferences = {
   minimumMagnitude: 4,
   foregroundMinimumMagnitude: 4,
+  visualOnly: false,
   regions: [...JAPAN_REGIONS],
   sound: true,
   vibration: true,
@@ -40,6 +42,7 @@ function readPreferences(): Preferences {
     return {
       minimumMagnitude: isForegroundAlertThreshold(parsed.minimumMagnitude) ? parsed.minimumMagnitude : 4,
       foregroundMinimumMagnitude: isForegroundAlertThreshold(parsed.foregroundMinimumMagnitude) ? parsed.foregroundMinimumMagnitude : 4,
+      visualOnly: Boolean(parsed.visualOnly),
       regions: Array.isArray(parsed.regions)
         ? parsed.regions.filter((region): region is JapanRegion => JAPAN_REGIONS.includes(region as JapanRegion))
         : defaults.regions,
@@ -92,12 +95,17 @@ export default function Alerts() {
     }
     const fresh = incoming.filter(alert => !seededAlertIds.current!.has(alert.alertId));
     incoming.forEach(alert => seededAlertIds.current!.add(alert.alertId));
-    const audible = fresh.filter(alert => shouldTriggerForegroundAlert(preferences.sound, preferences.foregroundMinimumMagnitude, alert.eventMagnitude));
-    if (!audible.length) return;
-    const strongest = Math.max(...audible.map(alert => alert.eventMagnitude));
-    if (playMagnitudeSound(strongest)) showVisualAlert(strongest);
-    else setSoundMessage("This browser cannot play an in-app sound. You can still view the alert history.");
-  }, [preferences.foregroundMinimumMagnitude, preferences.sound, snapshot.data?.alerts]);
+    const visible = fresh.filter(alert => shouldTriggerForegroundAlert(true, preferences.foregroundMinimumMagnitude, alert.eventMagnitude));
+    if (!visible.length) return;
+    const strongest = Math.max(...visible.map(alert => alert.eventMagnitude));
+    if (preferences.visualOnly) {
+      showVisualAlert(strongest);
+      setSoundMessage("Visual-only alert shown. Sound is muted for this device.");
+    } else if (shouldPlayForegroundSound(preferences.sound, preferences.visualOnly)) {
+      if (playMagnitudeSound(strongest)) showVisualAlert(strongest);
+      else setSoundMessage("This browser cannot play an in-app sound. You can still view the alert history.");
+    }
+  }, [preferences.foregroundMinimumMagnitude, preferences.sound, preferences.visualOnly, snapshot.data?.alerts]);
 
   const alerts = useMemo(
     () => (snapshot.data?.alerts ?? []).filter(alert => alert.eventMagnitude >= preferences.minimumMagnitude && preferences.regions.includes(alert.region)),
@@ -158,6 +166,11 @@ export default function Alerts() {
   };
 
   const testSound = (magnitude: number) => {
+    if (preferences.visualOnly) {
+      showVisualAlert(magnitude);
+      setSoundMessage("Visual-only preview shown. Sound is muted for this device.");
+      return;
+    }
     const played = playMagnitudeSound(magnitude);
     if (played) showVisualAlert(magnitude);
     setSoundMessage(
@@ -216,6 +229,7 @@ export default function Alerts() {
 
           <div className="mt-5 grid gap-2 sm:grid-cols-2">
             <Toggle label="Sound (supported when app is open)" icon={<Volume2 size={15} />} checked={preferences.sound} onChange={sound => update({ sound })} />
+            <Toggle label="Mute sound — visual alert only" icon={<BellRing size={15} />} checked={preferences.visualOnly} onChange={visualOnly => update({ visualOnly })} />
             <Toggle label="Vibration (device support only)" icon={<Vibrate size={15} />} checked={preferences.vibration} onChange={vibration => update({ vibration })} />
           </div>
 

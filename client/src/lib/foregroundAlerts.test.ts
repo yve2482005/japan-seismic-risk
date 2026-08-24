@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isForegroundAlertThreshold, shouldTriggerForegroundAlert } from "./foregroundAlerts";
+import { isForegroundAlertThreshold, shouldPlayForegroundSound, shouldTriggerForegroundAlert } from "./foregroundAlerts";
 
 describe("foreground alert threshold", () => {
   it("accepts only the available magnitude thresholds", () => {
@@ -13,5 +13,11 @@ describe("foreground alert threshold", () => {
     expect(shouldTriggerForegroundAlert(true, 5, 5)).toBe(true);
     expect(shouldTriggerForegroundAlert(true, 5, 4.9)).toBe(false);
     expect(shouldTriggerForegroundAlert(false, 4, 6)).toBe(false);
+  });
+
+  it("suppresses sound in visual-only mode without changing the chosen threshold", () => {
+    expect(shouldPlayForegroundSound(true, false)).toBe(true);
+    expect(shouldPlayForegroundSound(true, true)).toBe(false);
+    expect(shouldPlayForegroundSound(false, false)).toBe(false);
   });
 });

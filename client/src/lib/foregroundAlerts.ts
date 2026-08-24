@@ -7,3 +7,7 @@ export function isForegroundAlertThreshold(value: unknown): value is ForegroundA
 export function shouldTriggerForegroundAlert(enabled: boolean, minimumMagnitude: ForegroundAlertThreshold, eventMagnitude: number) {
   return enabled && Number.isFinite(eventMagnitude) && eventMagnitude >= minimumMagnitude;
 }
+
+export function shouldPlayForegroundSound(soundEnabled: boolean, visualOnly: boolean) {
+  return soundEnabled && !visualOnly;
+}

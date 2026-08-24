@@ -117,3 +117,4 @@
 - [x] Add a distinct user-testable foreground alert sound for M4.0–M5.9 events while retaining the M6+ siren.
 - [x] Add an accessible red visual alert effect that accompanies foreground alert sounds and respects reduced-motion preferences.
 - [x] Add a user-controlled minimum magnitude setting for foreground alert sounds and visual effects, separate from history and background-push filters.
+- [x] Add a user-controlled visual-only mute mode that suppresses foreground sound while retaining red visual alerts.
