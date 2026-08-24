@@ -5,6 +5,7 @@ import { approximateDistanceKm } from "@/lib/geo";
 import { isForegroundAlertThreshold, shouldPlayForegroundSound, shouldTriggerForegroundAlert, testAlertMode, type ForegroundAlertThreshold } from "@/lib/foregroundAlerts";
 import { isEventWithinNearbyRadius, isNearbyRadiusKm, type NearbyRadiusKm } from "@/lib/nearbyAlerts";
 import { DEFAULT_MAGNITUDE_SOUND_OPTIONS, isHighMagnitudeSoundOption, isMidMagnitudeSoundOption, magnitudeSoundLabel, playMagnitudeSound, soundOptionLabel, type HighMagnitudeSoundOption, type MidMagnitudeSoundOption } from "@/lib/notificationSounds";
+import { DEFAULT_QUIET_HOURS, foregroundSoundIsMuted, isQuietHoursActive, isTimeInput } from "@/lib/quietHours";
 import { trpc } from "@/lib/trpc";
 import { showVisualAlert } from "@/lib/visualAlert";
 import { getBrowserPushSubscription, removeBrowserPushSubscription } from "@/lib/webPush";
@@ -21,6 +22,9 @@ type Preferences = {
   visualOnly: boolean;
   midMagnitudeSound: MidMagnitudeSoundOption;
   highMagnitudeSound: HighMagnitudeSoundOption;
+  quietHoursEnabled: boolean;
+  quietHoursStart: string;
+  quietHoursEnd: string;
   regions: JapanRegion[];
   sound: boolean;
   vibration: boolean;
@@ -38,6 +42,9 @@ const defaults: Preferences = {
   visualOnly: false,
   midMagnitudeSound: DEFAULT_MAGNITUDE_SOUND_OPTIONS.midMagnitude,
   highMagnitudeSound: DEFAULT_MAGNITUDE_SOUND_OPTIONS.highMagnitude,
+  quietHoursEnabled: DEFAULT_QUIET_HOURS.enabled,
+  quietHoursStart: DEFAULT_QUIET_HOURS.start,
+  quietHoursEnd: DEFAULT_QUIET_HOURS.end,
   regions: [...JAPAN_REGIONS],
   sound: true,
   vibration: true,
@@ -57,6 +64,9 @@ function readPreferences(): Preferences {
       visualOnly: Boolean(parsed.visualOnly),
       midMagnitudeSound: isMidMagnitudeSoundOption(parsed.midMagnitudeSound) ? parsed.midMagnitudeSound : defaults.midMagnitudeSound,
       highMagnitudeSound: isHighMagnitudeSoundOption(parsed.highMagnitudeSound) ? parsed.highMagnitudeSound : defaults.highMagnitudeSound,
+      quietHoursEnabled: Boolean(parsed.quietHoursEnabled),
+      quietHoursStart: isTimeInput(parsed.quietHoursStart) ? parsed.quietHoursStart : defaults.quietHoursStart,
+      quietHoursEnd: isTimeInput(parsed.quietHoursEnd) ? parsed.quietHoursEnd : defaults.quietHoursEnd,
       regions: Array.isArray(parsed.regions)
         ? parsed.regions.filter((region): region is JapanRegion => JAPAN_REGIONS.includes(region as JapanRegion))
         : defaults.regions,
@@ -120,14 +130,15 @@ export default function Alerts() {
       : thresholdEligible;
     if (!visible.length) return;
     const strongest = Math.max(...visible.map(alert => alert.eventMagnitude));
-    if (preferences.visualOnly) {
+    const quietHours = { enabled: preferences.quietHoursEnabled, start: preferences.quietHoursStart, end: preferences.quietHoursEnd };
+    if (foregroundSoundIsMuted(preferences.visualOnly, quietHours)) {
       showVisualAlert(strongest);
-      setSoundMessage("Visual-only alert shown. Sound is muted for this device.");
+      setSoundMessage(preferences.visualOnly ? "Visual-only alert shown. Sound is muted for this device." : "Quiet hours active: visual alert shown and sound is muted for this device.");
     } else if (shouldPlayForegroundSound(preferences.sound, preferences.visualOnly)) {
       if (playMagnitudeSound(strongest, { midMagnitude: preferences.midMagnitudeSound, highMagnitude: preferences.highMagnitudeSound })) showVisualAlert(strongest);
       else setSoundMessage("This browser cannot play an in-app sound. You can still view the alert history.");
     }
-  }, [location, preferences.foregroundMinimumMagnitude, preferences.highMagnitudeSound, preferences.midMagnitudeSound, preferences.nearbyOnly, preferences.nearbyRadiusKm, preferences.sound, preferences.visualOnly, snapshot.data?.alerts]);
+  }, [location, preferences.foregroundMinimumMagnitude, preferences.highMagnitudeSound, preferences.midMagnitudeSound, preferences.nearbyOnly, preferences.nearbyRadiusKm, preferences.quietHoursEnabled, preferences.quietHoursEnd, preferences.quietHoursStart, preferences.sound, preferences.visualOnly, snapshot.data?.alerts]);
 
   const alerts = useMemo(
     () => (snapshot.data?.alerts ?? []).filter(alert => alert.eventMagnitude >= preferences.minimumMagnitude && preferences.regions.includes(alert.region)),
@@ -136,6 +147,7 @@ export default function Alerts() {
 
   const update = (partial: Partial<Preferences>) => setPreferences(current => ({ ...current, ...partial }));
   const magnitudeSoundOptions = { midMagnitude: preferences.midMagnitudeSound, highMagnitude: preferences.highMagnitudeSound };
+  const quietHours = { enabled: preferences.quietHoursEnabled, start: preferences.quietHoursStart, end: preferences.quietHoursEnd };
 
   const enableBackgroundPush = async () => {
     if (!isAuthenticated) return startLogin();
@@ -189,9 +201,9 @@ export default function Alerts() {
   };
 
   const testSound = (magnitude: number) => {
-    if (preferences.visualOnly) {
+    if (foregroundSoundIsMuted(preferences.visualOnly, quietHours)) {
       showVisualAlert(magnitude);
-      setSoundMessage("Visual-only preview shown. Sound is muted for this device.");
+      setSoundMessage(preferences.visualOnly ? "Visual-only preview shown. Sound is muted for this device." : "Quiet hours active: visual-only preview shown. Sound is muted for this device.");
       return;
     }
     const played = playMagnitudeSound(magnitude, magnitudeSoundOptions);
@@ -204,6 +216,11 @@ export default function Alerts() {
   };
 
   const testSiren = () => {
+    if (foregroundSoundIsMuted(preferences.visualOnly, quietHours)) {
+      showVisualAlert(6);
+      setSoundMessage(preferences.visualOnly ? "Visual-only preview shown. Sound is muted for this device." : "Quiet hours active: M6.0+ visual preview shown. Sound is muted for this device.");
+      return;
+    }
     const played = playMagnitudeSound(6, magnitudeSoundOptions);
     setSoundMessage(
       played
@@ -215,9 +232,9 @@ export default function Alerts() {
   const runTestAlert = () => {
     const magnitude = preferences.foregroundMinimumMagnitude;
     const mode = testAlertMode(preferences.sound, preferences.visualOnly);
-    if (mode === "visual_only") {
+    if (mode === "visual_only" || isQuietHoursActive(quietHours)) {
       showVisualAlert(magnitude);
-      setSoundMessage(`Test Alert: visual-only mode is working at M${magnitude}. No sound was played.`);
+      setSoundMessage(mode === "visual_only" ? `Test Alert: visual-only mode is working at M${magnitude}. No sound was played.` : `Test Alert: quiet hours active at M${magnitude}. Visual alert shown; no sound was played.`);
       return;
     }
     if (mode === "sound_and_visual") {
@@ -307,6 +324,14 @@ export default function Alerts() {
               <label className="text-sm font-bold">M4.0–M5.9 sound<select value={preferences.midMagnitudeSound} onChange={event => update({ midMagnitudeSound: event.target.value as MidMagnitudeSoundOption })} className="mt-2 block w-full rounded-xl border border-[#a8cfe3] bg-white px-3 py-2 text-sm"><option value="rapid_pulse">Rapid alert pulse</option><option value="two_tone_alert">Two-tone alert</option></select></label>
               <label className="text-sm font-bold">M6.0+ sound<select value={preferences.highMagnitudeSound} onChange={event => update({ highMagnitudeSound: event.target.value as HighMagnitudeSoundOption })} className="mt-2 block w-full rounded-xl border border-[#a8cfe3] bg-white px-3 py-2 text-sm"><option value="five_second_siren">5-second loud siren</option><option value="triple_urgent_sweep">Triple urgent sweep</option></select></label>
             </div>
+          </div>
+
+          <div className="mt-5 rounded-2xl border border-[#d6c6e8] bg-[#f7f2fb] p-4">
+            <Toggle label="Do Not Disturb schedule — mute sound" icon={<Moon size={15} />} checked={preferences.quietHoursEnabled} onChange={quietHoursEnabled => update({ quietHoursEnabled })} />
+            {preferences.quietHoursEnabled && <div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="text-sm font-bold">Start time<input type="time" value={preferences.quietHoursStart} onChange={event => update({ quietHoursStart: event.target.value })} className="mt-2 block w-full rounded-xl border border-[#c6b4da] bg-white px-3 py-2 text-sm" /></label><label className="text-sm font-bold">End time<input type="time" value={preferences.quietHoursEnd} onChange={event => update({ quietHoursEnd: event.target.value })} className="mt-2 block w-full rounded-xl border border-[#c6b4da] bg-white px-3 py-2 text-sm" /></label></div>}
+            <p className="mt-3 text-xs leading-5 text-slate-600">သတ်မှတ်ထားသော local device time အတွင်း app ဖွင့်ထားချိန်၏ alert sound ကိုသာ mute လုပ်ပြီး red visual alert ကိုဆက်ပြပါမယ်။ Midnight ဖြတ်သန်းသော schedule (ဥပမာ 22:00–07:00) ကိုလည်း ပံ့ပိုးပါသည်။</p>
+            <p className="mt-2 text-xs font-bold text-slate-700">{preferences.quietHoursEnabled ? (isQuietHoursActive(quietHours) ? "Quiet hours are active now — foreground sound is muted." : `Quiet hours are set: ${preferences.quietHoursStart}–${preferences.quietHoursEnd}.`) : "Quiet hours are off."}</p>
+            <p className="mt-2 text-xs leading-5 text-slate-500">App-closed browser notifications သည် ဖုန်း/OS Do Not Disturb စနစ်ကိုလိုက်နာပါသည်; ဤ local schedule က background push ကို မပြောင်းလဲပါ။</p>
           </div>
 
           <div className="mt-5 rounded-2xl border border-[#f0b5ae] bg-[#fff8f7] p-4">
