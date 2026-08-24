@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useTheme } from "@/contexts/ThemeContext";
 import { startLogin } from "@/const";
 import { approximateDistanceKm } from "@/lib/geo";
 import { isForegroundAlertThreshold, shouldPlayForegroundSound, shouldTriggerForegroundAlert, testAlertMode, type ForegroundAlertThreshold } from "@/lib/foregroundAlerts";
@@ -8,7 +9,7 @@ import { trpc } from "@/lib/trpc";
 import { showVisualAlert } from "@/lib/visualAlert";
 import { getBrowserPushSubscription, removeBrowserPushSubscription } from "@/lib/webPush";
 import { JAPAN_REGIONS, type JapanRegion } from "@shared/seismic";
-import { ArrowLeft, Bell, BellRing, CheckCircle2, LocateFixed, MapPin, Settings2, Volume2, Vibrate } from "lucide-react";
+import { ArrowLeft, Bell, BellRing, CheckCircle2, LocateFixed, MapPin, Moon, Settings2, Sun, Volume2, Vibrate } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
 
@@ -76,6 +77,7 @@ function localTime(utc: string) {
 export default function Alerts() {
   const snapshot = trpc.seismic.snapshot.useQuery();
   const { isAuthenticated } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const pushConfig = trpc.push.configuration.useQuery(undefined, { enabled: isAuthenticated, retry: false });
   const pushStatus = trpc.push.status.useQuery(undefined, { enabled: isAuthenticated, retry: false });
   const subscribePush = trpc.push.subscribe.useMutation({ onSuccess: () => { void pushStatus.refetch(); } });
@@ -236,6 +238,7 @@ export default function Alerts() {
 
         <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center gap-2"><Settings2 size={18} /><h2 className="font-black">သင့် alert settings</h2></div>
+          <div className="mt-4"><Toggle label="Dark mode (night-friendly)" icon={theme === "dark" ? <Moon size={15} /> : <Sun size={15} />} checked={theme === "dark"} onChange={() => toggleTheme?.()} /></div>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <label className="text-sm font-bold">Alert history & background minimum magnitude
               <select value={preferences.minimumMagnitude} onChange={event => update({ minimumMagnitude: Number(event.target.value) as ForegroundAlertThreshold })} className="mt-2 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm">

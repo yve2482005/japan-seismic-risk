@@ -47,3 +47,19 @@ button:focus-visible, [role="button"]:focus-visible { outline: 2px solid #111; o
 .seismic-visual-alert::after { content: ""; position: absolute; z-index: -1; top: max(1.25rem, env(safe-area-inset-top)); width: min(90vw, 32rem); height: 2.3rem; border-radius: 999px; background: rgba(127, 29, 29, .92); box-shadow: 0 8px 22px rgba(69, 10, 10, .34); }
 @keyframes seismic-alert-flash { 0%, 100% { opacity: 0; } 12%, 36%, 62% { opacity: 1; } 24%, 49%, 78% { opacity: .28; } }
 @media (prefers-reduced-motion: reduce) { .seismic-visual-alert, .seismic-visual-alert::before { animation: none; opacity: 1; } }
+
+.dark { color-scheme: dark; --background: oklch(0.16 0.015 245); --foreground: oklch(0.94 0.01 245); --card: oklch(0.21 0.016 245); --card-foreground: oklch(0.94 0.01 245); --popover: oklch(0.21 0.016 245); --popover-foreground: oklch(0.94 0.01 245); --primary: oklch(0.93 0.01 245); --primary-foreground: oklch(0.16 0.015 245); --secondary: oklch(0.25 0.018 245); --secondary-foreground: oklch(0.94 0.01 245); --muted: oklch(0.24 0.014 245); --muted-foreground: oklch(0.75 0.02 245); --accent: oklch(0.27 0.02 245); --accent-foreground: oklch(0.94 0.01 245); --border: oklch(0.33 0.02 245); --input: oklch(0.33 0.02 245); }
+.dark html, html.dark, .dark body { background: #0b1117; }
+.dark main { background: #0b1117 !important; color: #edf4f7 !important; }
+.dark header, .dark .bg-white { background-color: #15212b !important; }
+.dark .bg-slate-50, .dark .bg-slate-100 { background-color: #1b2a35 !important; }
+.dark .bg-\[\#f5f7f8\], .dark .bg-\[\#f3f6f8\] { background-color: #0b1117 !important; }
+.dark .bg-\[\#edf7fc\] { background-color: #16313f !important; }
+.dark .bg-\[\#fff4f3\], .dark .bg-\[\#fff8f7\] { background-color: #3a1d20 !important; }
+.dark .bg-\[\#f2fbf5\] { background-color: #183229 !important; }
+.dark .border-slate-200, .dark .border-slate-300, .dark .border-\[\#b8d9eb\], .dark .border-\[\#f0b5ae\], .dark .border-\[\#bdd5c6\] { border-color: #3b4c59 !important; }
+.dark .text-slate-950, .dark .text-slate-700, .dark .text-slate-600 { color: #e5eef3 !important; }
+.dark .text-slate-500, .dark .text-slate-400 { color: #aab9c3 !important; }
+.dark select, .dark input, .dark button.bg-white { background-color: #20313d !important; color: #edf4f7 !important; border-color: #4a5e6d !important; }
+.dark button.bg-slate-950 { background-color: #e5eef3 !important; color: #10171e !important; }
+.dark .shadow-sm { box-shadow: 0 8px 28px rgba(0, 0, 0, .28); }
