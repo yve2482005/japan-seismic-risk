@@ -7,14 +7,18 @@ export function soundPatternForMagnitude(magnitude: number): SoundPulse[] {
     { frequency: 1480, endFrequency: 720, delayMs: 450, durationMs: 420, gain: 0.48, waveform: "sawtooth" },
     { frequency: 720, endFrequency: 1480, delayMs: 900, durationMs: 460, gain: 0.48, waveform: "sawtooth" },
   ];
-  if (magnitude >= 5) return [{ frequency: 659, delayMs: 0, durationMs: 150 }, { frequency: 880, delayMs: 230, durationMs: 210 }];
+  if (magnitude >= 4) return [
+    { frequency: 610, delayMs: 0, durationMs: 130, gain: 0.26, waveform: "triangle" },
+    { frequency: 760, delayMs: 170, durationMs: 130, gain: 0.26, waveform: "triangle" },
+    { frequency: 610, delayMs: 340, durationMs: 150, gain: 0.26, waveform: "triangle" },
+  ];
   return [{ frequency: 523, delayMs: 0, durationMs: 150 }];
 }
 
 export function magnitudeSoundLabel(magnitude: number) {
   if (magnitude >= 6) return "M6.0+ — loud siren preview";
-  if (magnitude >= 5) return "M5.0+ — elevated two-tone";
-  return "M4.0+ — standard single-tone";
+  if (magnitude >= 4) return "M4.0–M5.9 — rapid alert pulse";
+  return "Below M4.0 — standard single-tone";
 }
 
 export function playMagnitudeSound(magnitude: number): boolean {
