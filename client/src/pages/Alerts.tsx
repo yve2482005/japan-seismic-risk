@@ -4,7 +4,7 @@ import { startLogin } from "@/const";
 import { approximateDistanceKm } from "@/lib/geo";
 import { isForegroundAlertThreshold, shouldPlayForegroundSound, shouldTriggerForegroundAlert, testAlertMode, type ForegroundAlertThreshold } from "@/lib/foregroundAlerts";
 import { isEventWithinNearbyRadius, isNearbyRadiusKm, type NearbyRadiusKm } from "@/lib/nearbyAlerts";
-import { magnitudeSoundLabel, playMagnitudeSound } from "@/lib/notificationSounds";
+import { DEFAULT_MAGNITUDE_SOUND_OPTIONS, isHighMagnitudeSoundOption, isMidMagnitudeSoundOption, magnitudeSoundLabel, playMagnitudeSound, soundOptionLabel, type HighMagnitudeSoundOption, type MidMagnitudeSoundOption } from "@/lib/notificationSounds";
 import { trpc } from "@/lib/trpc";
 import { showVisualAlert } from "@/lib/visualAlert";
 import { getBrowserPushSubscription, removeBrowserPushSubscription } from "@/lib/webPush";
@@ -19,6 +19,8 @@ type Preferences = {
   nearbyOnly: boolean;
   nearbyRadiusKm: NearbyRadiusKm;
   visualOnly: boolean;
+  midMagnitudeSound: MidMagnitudeSoundOption;
+  highMagnitudeSound: HighMagnitudeSoundOption;
   regions: JapanRegion[];
   sound: boolean;
   vibration: boolean;
@@ -34,6 +36,8 @@ const defaults: Preferences = {
   nearbyOnly: false,
   nearbyRadiusKm: 250,
   visualOnly: false,
+  midMagnitudeSound: DEFAULT_MAGNITUDE_SOUND_OPTIONS.midMagnitude,
+  highMagnitudeSound: DEFAULT_MAGNITUDE_SOUND_OPTIONS.highMagnitude,
   regions: [...JAPAN_REGIONS],
   sound: true,
   vibration: true,
@@ -51,6 +55,8 @@ function readPreferences(): Preferences {
       nearbyOnly: Boolean(parsed.nearbyOnly),
       nearbyRadiusKm: isNearbyRadiusKm(parsed.nearbyRadiusKm) ? parsed.nearbyRadiusKm : 250,
       visualOnly: Boolean(parsed.visualOnly),
+      midMagnitudeSound: isMidMagnitudeSoundOption(parsed.midMagnitudeSound) ? parsed.midMagnitudeSound : defaults.midMagnitudeSound,
+      highMagnitudeSound: isHighMagnitudeSoundOption(parsed.highMagnitudeSound) ? parsed.highMagnitudeSound : defaults.highMagnitudeSound,
       regions: Array.isArray(parsed.regions)
         ? parsed.regions.filter((region): region is JapanRegion => JAPAN_REGIONS.includes(region as JapanRegion))
         : defaults.regions,
@@ -118,10 +124,10 @@ export default function Alerts() {
       showVisualAlert(strongest);
       setSoundMessage("Visual-only alert shown. Sound is muted for this device.");
     } else if (shouldPlayForegroundSound(preferences.sound, preferences.visualOnly)) {
-      if (playMagnitudeSound(strongest)) showVisualAlert(strongest);
+      if (playMagnitudeSound(strongest, { midMagnitude: preferences.midMagnitudeSound, highMagnitude: preferences.highMagnitudeSound })) showVisualAlert(strongest);
       else setSoundMessage("This browser cannot play an in-app sound. You can still view the alert history.");
     }
-  }, [location, preferences.foregroundMinimumMagnitude, preferences.nearbyOnly, preferences.nearbyRadiusKm, preferences.sound, preferences.visualOnly, snapshot.data?.alerts]);
+  }, [location, preferences.foregroundMinimumMagnitude, preferences.highMagnitudeSound, preferences.midMagnitudeSound, preferences.nearbyOnly, preferences.nearbyRadiusKm, preferences.sound, preferences.visualOnly, snapshot.data?.alerts]);
 
   const alerts = useMemo(
     () => (snapshot.data?.alerts ?? []).filter(alert => alert.eventMagnitude >= preferences.minimumMagnitude && preferences.regions.includes(alert.region)),
@@ -129,6 +135,7 @@ export default function Alerts() {
   );
 
   const update = (partial: Partial<Preferences>) => setPreferences(current => ({ ...current, ...partial }));
+  const magnitudeSoundOptions = { midMagnitude: preferences.midMagnitudeSound, highMagnitude: preferences.highMagnitudeSound };
 
   const enableBackgroundPush = async () => {
     if (!isAuthenticated) return startLogin();
@@ -187,20 +194,20 @@ export default function Alerts() {
       setSoundMessage("Visual-only preview shown. Sound is muted for this device.");
       return;
     }
-    const played = playMagnitudeSound(magnitude);
+    const played = playMagnitudeSound(magnitude, magnitudeSoundOptions);
     if (played) showVisualAlert(magnitude);
     setSoundMessage(
       played
-        ? `${magnitudeSoundLabel(magnitude)} preview played with a red visual alert.`
+        ? `${magnitudeSoundLabel(magnitude, magnitudeSoundOptions)} preview played with a red visual alert.`
         : "This browser cannot play an in-app sound. Check device/browser sound settings.",
     );
   };
 
   const testSiren = () => {
-    const played = playMagnitudeSound(6);
+    const played = playMagnitudeSound(6, magnitudeSoundOptions);
     setSoundMessage(
       played
-        ? "Test Siren: 5-second M6.0+ siren preview is playing. This is only a sound test; no alert or notification was created."
+        ? `Test Siren: ${soundOptionLabel(preferences.highMagnitudeSound)} preview is playing. This is only a sound test; no alert or notification was created.`
         : "Test Siren could not start sound in this browser. Check browser or device audio settings.",
     );
   };
@@ -214,7 +221,7 @@ export default function Alerts() {
       return;
     }
     if (mode === "sound_and_visual") {
-      if (playMagnitudeSound(magnitude)) {
+      if (playMagnitudeSound(magnitude, magnitudeSoundOptions)) {
         showVisualAlert(magnitude);
         setSoundMessage(`Test Alert: sound and red visual alert are working at M${magnitude}.`);
       } else {
@@ -293,6 +300,15 @@ export default function Alerts() {
             <Toggle label="Vibration (device support only)" icon={<Vibrate size={15} />} checked={preferences.vibration} onChange={vibration => update({ vibration })} />
           </div>
 
+          <div className="mt-5 rounded-2xl border border-[#b8d9eb] bg-[#edf7fc] p-4">
+            <p className="flex items-center gap-2 text-sm font-black"><Volume2 size={16} />Magnitude sound options</p>
+            <p className="mt-1 text-xs leading-5 text-slate-600">App ဖွင့်ထားချိန်တွင် magnitude အလိုက်အသုံးပြုမည့် in-app sound ကိုရွေးပါ။ ဤအသံများသည် official warning level မဟုတ်ပါ။</p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <label className="text-sm font-bold">M4.0–M5.9 sound<select value={preferences.midMagnitudeSound} onChange={event => update({ midMagnitudeSound: event.target.value as MidMagnitudeSoundOption })} className="mt-2 block w-full rounded-xl border border-[#a8cfe3] bg-white px-3 py-2 text-sm"><option value="rapid_pulse">Rapid alert pulse</option><option value="two_tone_alert">Two-tone alert</option></select></label>
+              <label className="text-sm font-bold">M6.0+ sound<select value={preferences.highMagnitudeSound} onChange={event => update({ highMagnitudeSound: event.target.value as HighMagnitudeSoundOption })} className="mt-2 block w-full rounded-xl border border-[#a8cfe3] bg-white px-3 py-2 text-sm"><option value="five_second_siren">5-second loud siren</option><option value="triple_urgent_sweep">Triple urgent sweep</option></select></label>
+            </div>
+          </div>
+
           <div className="mt-5 rounded-2xl border border-[#f0b5ae] bg-[#fff8f7] p-4">
             <p className="text-sm font-black">Quick alert test</p>
             <p className="mt-1 text-xs leading-5 text-slate-600">Current foreground settings ကိုသာ စမ်းသပ်မည်ဖြစ်ပြီး earthquake record, alert history သို့မဟုတ် background notification မဖန်တီးပါ။</p>
@@ -303,8 +319,8 @@ export default function Alerts() {
             <p className="flex items-center gap-2 text-sm font-black"><Volume2 size={16} />Magnitude sound preview</p>
             <p className="mt-1 text-xs leading-5 text-slate-600">App ဖွင့်ထားချိန်တွင်သာ in-app sound နှင့် visual alert ရနိုင်ပါသည်။ Test button ကိုနှိပ်၍ အသံကွဲပြားမှု စမ်းပါ—အသံသည် official warning level မဟုတ်ပါ။</p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <button onClick={testSiren} className="rounded-xl bg-[#b42318] px-3 py-2 text-xs font-black text-white shadow-sm hover:bg-[#8f1d14]"><Volume2 className="mr-1 inline" size={14} />Test Siren (5 seconds)</button>
-              {[4, 6].map(magnitude => <button key={magnitude} onClick={() => testSound(magnitude)} className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold hover:border-slate-950">Test {magnitudeSoundLabel(magnitude)}</button>)}
+              <button onClick={testSiren} className="rounded-xl bg-[#b42318] px-3 py-2 text-xs font-black text-white shadow-sm hover:bg-[#8f1d14]"><Volume2 className="mr-1 inline" size={14} />Test M6.0+ sound</button>
+              {[4, 6].map(magnitude => <button key={magnitude} onClick={() => testSound(magnitude)} className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold hover:border-slate-950">Test {magnitudeSoundLabel(magnitude, magnitudeSoundOptions)}</button>)}
             </div>
             <p role="status" className="mt-2 text-xs font-medium text-slate-600">{soundMessage}</p>
           </div>

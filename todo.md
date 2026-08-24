@@ -131,3 +131,4 @@
 - [x] Run the approved USGS live collection and processing workflow once immediately, then verify its truthful outcome without weakening source or model safeguards.
 - [x] Extend the M6.0+ foreground siren preview to a louder five-second pattern while retaining visual-only mute behavior.
 - [x] Add a dedicated non-event Test Siren control so users can preview the current five-second M6+ sound from settings.
+- [x] Add saved magnitude-specific sound options for M4.0–M5.9 and M6.0+ while preserving visual-only mute behavior.

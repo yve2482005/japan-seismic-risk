@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { magnitudeSoundLabel, soundPatternForMagnitude } from "./notificationSounds";
+import { DEFAULT_MAGNITUDE_SOUND_OPTIONS, magnitudeSoundLabel, soundOptionLabel, soundPatternForMagnitude } from "./notificationSounds";
 
 describe("magnitude notification sounds", () => {
   it("uses increasingly distinctive non-musical patterns by magnitude", () => {
@@ -10,6 +10,13 @@ describe("magnitude notification sounds", () => {
     expect(soundPatternForMagnitude(6.2)[0]).toMatchObject({ frequency: 720, endFrequency: 1480, delayMs: 0, durationMs: 500, gain: 0.5, waveform: "sawtooth" });
     expect(soundPatternForMagnitude(6.2)[1]).toMatchObject({ frequency: 1480, endFrequency: 720, delayMs: 500, durationMs: 500, gain: 0.5, waveform: "sawtooth" });
     expect(soundPatternForMagnitude(6.2).at(-1)).toMatchObject({ delayMs: 4500, durationMs: 500 });
+  });
+
+  it("allows a distinct saved option for each magnitude tier", () => {
+    expect(soundPatternForMagnitude(4.5, { ...DEFAULT_MAGNITUDE_SOUND_OPTIONS, midMagnitude: "two_tone_alert" })).toHaveLength(2);
+    expect(soundPatternForMagnitude(6.5, { ...DEFAULT_MAGNITUDE_SOUND_OPTIONS, highMagnitude: "triple_urgent_sweep" })).toHaveLength(3);
+    expect(soundOptionLabel("two_tone_alert")).toContain("two-tone");
+    expect(soundOptionLabel("triple_urgent_sweep")).toContain("triple");
   });
 
   it("labels the sound tiers without presenting them as official warning levels", () => {
