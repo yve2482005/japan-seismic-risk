@@ -125,3 +125,4 @@
 - [x] Add a clear Current Location control that places a browser-session-only user marker on the live map without persisting or sending precise location.
 - [x] Show the local-session approximate distance between Current Location and a selected USGS earthquake epicenter on the map and detail panel.
 - [x] Emphasize selected-event distances at or below 100 km with accessible red proximity styling while retaining approximate-distance boundaries.
+- [x] Show official Japan emergency contacts and concise safety reminders when a selected event is within the 100 km proximity display, with clear non-warning boundaries.
