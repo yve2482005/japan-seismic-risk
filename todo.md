@@ -127,3 +127,4 @@
 - [x] Emphasize selected-event distances at or below 100 km with accessible red proximity styling while retaining approximate-distance boundaries.
 - [x] Show official Japan emergency contacts and concise safety reminders when a selected event is within the 100 km proximity display, with clear non-warning boundaries.
 - [x] Add an explicitly non-hazardous 100 km red reference ring around selected close-distance epicenters on the approximate map.
+- [x] Add a subtle reduced-motion-aware pulse to the non-hazard 100 km map reference ring.
