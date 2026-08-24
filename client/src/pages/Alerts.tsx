@@ -1,6 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useTheme } from "@/contexts/ThemeContext";
 import { startLogin } from "@/const";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { approximateDistanceKm } from "@/lib/geo";
 import { isForegroundAlertThreshold, shouldPlayForegroundSound, shouldTriggerForegroundAlert, testAlertMode, type ForegroundAlertThreshold } from "@/lib/foregroundAlerts";
 import { isEventWithinNearbyRadius, isNearbyRadiusKm, type NearbyRadiusKm } from "@/lib/nearbyAlerts";
@@ -278,7 +279,16 @@ export default function Alerts() {
         </section>
 
         {quietHoursActive && <section role="status" aria-live="polite" className="mt-4 flex items-start gap-3 rounded-2xl border border-[#d98600] bg-[#fff4d6] p-4 text-[#633500] shadow-sm">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#d97706] text-white"><BellOff size={18} aria-hidden="true" /></span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span tabIndex={0} aria-label="Quiet Hours details" className="flex h-9 w-9 shrink-0 cursor-help items-center justify-center rounded-full bg-[#d97706] text-white outline-offset-2 focus-visible:outline-2 focus-visible:outline-[#633500]"><BellOff size={18} aria-hidden="true" /></span>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" sideOffset={8} className="max-w-[min(20rem,calc(100vw-2rem))] bg-slate-950 px-3 py-2.5 text-left text-xs leading-5 text-white">
+              <p className="font-black">Quiet Hours details</p>
+              <p className="mt-1">Saved local schedule: {preferences.quietHoursStart}–{preferences.quietHoursEnd}. App ဖွင့်ထားချိန်တွင် foreground alert sound ကိုသာ ပိတ်ထားပါသည်။</p>
+              <p className="mt-1">Red visual alert ဆက်ပြမည်ဖြစ်ပြီး background push သည် browser/OS Do Not Disturb ကိုသာလိုက်နာပါသည်။</p>
+            </TooltipContent>
+          </Tooltip>
           <div>
             <p className="font-black">Quiet Hours အလုပ်လုပ်နေသည်</p>
             <p className="mt-1 text-sm leading-5">Local time {preferences.quietHoursStart}–{preferences.quietHoursEnd} အတွင်း foreground alert sound ကို ပိတ်ထားပြီး red visual alert ကိုသာ ဆက်ပြမည်ဖြစ်သည်။</p>
