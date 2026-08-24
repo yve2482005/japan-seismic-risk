@@ -91,6 +91,51 @@ def build_dataset(records: list[dict[str, Any]], target: TargetConfig) -> tuple[
     return np.asarray(rows), np.asarray(labels)
 
 
+def regional_feature_vector(records: list[dict[str, Any]], region: str, as_of: datetime) -> list[float] | None:
+    """Build a no-future-information feature row for a regional forecast timestamp."""
+    earlier = [record for record in records if record.get("region") == region and parse_time(record["origin_time_utc"]) <= as_of]
+    if not earlier:
+        return None
+    def recent(hours: int) -> list[dict[str, Any]]:
+        return [record for record in earlier if as_of - parse_time(record["origin_time_utc"]) <= timedelta(hours=hours)]
+    def stat(values: list[float], reducer: str) -> float:
+        return float(getattr(np, reducer)(values)) if values else np.nan
+    def hours_since(threshold: float | None = None) -> float:
+        candidates = [record for record in earlier if threshold is None or float(record.get("magnitude") or -99) >= threshold]
+        return (as_of - parse_time(candidates[-1]["origin_time_utc"])).total_seconds() / 3600 if candidates else np.nan
+    last_24, previous_24 = recent(24), [record for record in earlier if timedelta(hours=24) < as_of - parse_time(record["origin_time_utc"]) <= timedelta(hours=48)]
+    magnitudes = [float(record["magnitude"]) for record in last_24 if record.get("magnitude") is not None]
+    depths = [float(record["depth_km"]) for record in last_24 if record.get("depth_km") is not None]
+    prior_magnitudes = [float(record["magnitude"]) for record in previous_24 if record.get("magnitude") is not None]
+    last_30 = recent(720)
+    return [
+        len(recent(1)), len(recent(6)), len(last_24), len(recent(72)), len(recent(168)), len(last_30),
+        stat(magnitudes, "min"), stat(magnitudes, "max"), stat(magnitudes, "mean"), stat(magnitudes, "median"), stat(magnitudes, "std"),
+        stat(depths, "min"), stat(depths, "mean"), stat(depths, "max"),
+        hours_since(), hours_since(3), hours_since(4), hours_since(5), np.nan, len(last_24), len(recent(168)),
+        ((len(last_24) - len(previous_24)) / len(previous_24)) if previous_24 else np.nan,
+        (float(np.mean(magnitudes)) - float(np.mean(prior_magnitudes))) if magnitudes and prior_magnitudes else np.nan,
+        (len(last_24) / 1) / (len(last_30) / 30) if last_30 else np.nan,
+        sum(float(record.get("magnitude") or -99) >= 4 for record in earlier), sum(float(record.get("magnitude") or -99) >= 5 for record in earlier), sum(float(record.get("magnitude") or -99) >= 6 for record in earlier),
+    ]
+
+
+def production_model(records: list[dict[str, Any]], target: TargetConfig, algorithm: str):
+    """Refit the selected, already evaluated algorithm on all available source-specific history."""
+    features, labels = build_dataset(records, target)
+    if len(np.unique(labels)) < 2:
+        raise ValueError("Insufficient class diversity for a production refit.")
+    if algorithm == "logistic_regression":
+        model = Pipeline([("imputer", SimpleImputer(strategy="median")), ("scale", StandardScaler()), ("model", LogisticRegression(max_iter=2000, class_weight="balanced"))])
+    elif algorithm == "random_forest":
+        model = Pipeline([("imputer", SimpleImputer(strategy="median")), ("model", RandomForestClassifier(n_estimators=300, class_weight="balanced", random_state=42))])
+    elif algorithm == "gradient_boosting":
+        model = Pipeline([("imputer", SimpleImputer(strategy="median")), ("model", HistGradientBoostingClassifier(random_state=42))])
+    else:
+        raise ValueError(f"Unsupported production algorithm: {algorithm}")
+    return model.fit(features, labels)
+
+
 def chronological_slices(n_rows: int) -> tuple[slice, slice, slice]:
     train_end = int(n_rows * 0.7)
     valid_end = int(n_rows * 0.85)

@@ -2,7 +2,7 @@ import json
 import unittest
 from unittest.mock import patch
 
-from collector.github_action_runner import materialize_features, normalized_records, positive_label_count, promote_rows, quality_gate, select_production_candidate
+from collector.github_action_runner import materialize_features, normalized_records, positive_label_count, production_prediction_rows, promote_rows, quality_gate, risk_level, select_production_candidate
 
 
 class GitHubActionRunnerTests(unittest.TestCase):
@@ -43,6 +43,12 @@ class GitHubActionRunnerTests(unittest.TestCase):
         with patch("collector.github_action_runner.quality_gate", return_value=(False, {"records": 1})), patch("collector.github_action_runner.append_system_log"):
             from collector.github_action_runner import train_if_ready
             self.assertEqual(train_if_ready("sheet", records, "jma-historical-bulletin-v1", allow_promotion=False)["status"], "deferred_quality_gate")
+
+    def test_no_probability_rows_exist_without_an_actual_production_report(self):
+        self.assertEqual(production_prediction_rows([], [], "2026-08-24T00:00:00Z"), [])
+
+    def test_probability_categories_are_derived_from_probability_values(self):
+        self.assertEqual([risk_level(value) for value in (0.01, 0.06, 0.16, 0.31)], ["LOW", "MODERATE", "ELEVATED", "HIGH"])
 
     def test_selects_only_the_best_calibrated_candidate_for_production(self):
         def candidate(pr_auc: float, brier: float, ece: float):
