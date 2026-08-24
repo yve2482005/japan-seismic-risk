@@ -277,7 +277,7 @@ def train_if_ready(spreadsheet_id: str, records: list[dict[str, Any]], dataset_v
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", choices=("collect", "train", "all", "jma-backfill", "jma-quality-check"), default="all")
+    parser.add_argument("--mode", choices=("collect", "train", "all", "jma-backfill", "jma-quality-check", "jma-train"), default="all")
     parser.add_argument("--spreadsheet-id", default=None)
     args = parser.parse_args()
     spreadsheet_id = args.spreadsheet_id or require_environment("GOOGLE_SHEETS_SPREADSHEET_ID")
@@ -296,6 +296,10 @@ def main() -> None:
         passed, gate = quality_gate(records)
         output["jma_quality_check"] = {"status": "jma_source_separated_quality_gate_satisfied" if passed else "deferred_quality_gate", "dataset_version": "jma-historical-bulletin-v1", "metrics_reported": False, "probabilities_reported": False, **source_quality_summary(spreadsheet_id, JMA_SOURCE), **gate}
         append_system_log(spreadsheet_id, "jma_quality_check", "info", "JMA-only quality gate evaluated without model training or metrics", output["jma_quality_check"])
+    if args.mode == "jma-train":
+        records = normalized_records(spreadsheet_id, JMA_SOURCE)
+        output["derived"] = materialize_features(spreadsheet_id, records, "jma-historical-bulletin-v1")
+        output["training"] = train_if_ready(spreadsheet_id, records, "jma-historical-bulletin-v1", allow_promotion=False)
     print(json.dumps(output, ensure_ascii=False))
 
 

@@ -38,6 +38,12 @@ class GitHubActionRunnerTests(unittest.TestCase):
         with patch("collector.github_action_runner.read_tab_records", return_value=rows):
             self.assertEqual(len(normalized_records("sheet", "JMA")), 1)
 
+    def test_source_separated_training_never_promotes_a_model(self):
+        records = [{"event_id": "evt-1", "origin_time_utc": "2025-01-01T00:00:00Z", "latitude": 32.2, "longitude": 132.0, "depth_km": 10.0, "magnitude": 3.1, "region": "Kyushu"}]
+        with patch("collector.github_action_runner.quality_gate", return_value=(False, {"records": 1})), patch("collector.github_action_runner.append_system_log"):
+            from collector.github_action_runner import train_if_ready
+            self.assertEqual(train_if_ready("sheet", records, "jma-historical-bulletin-v1", allow_promotion=False)["status"], "deferred_quality_gate")
+
     def test_selects_only_the_best_calibrated_candidate_for_production(self):
         def candidate(pr_auc: float, brier: float, ece: float):
             return {"metrics_json": json.dumps({"pr_auc": pr_auc, "brier_score": brier, "calibration": {"expected_calibration_error": ece}})}
