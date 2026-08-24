@@ -138,3 +138,4 @@
 - [x] Add a gentle reduced-motion-aware pulse animation to the active amber Quiet Hours indicator.
 - [x] Audit and implement a scoped future-level upgrade that improves the public monitoring experience without weakening $0 operation, data provenance, alert safety, or scientific boundaries.
 - [x] Add a visible real-time refresh indicator while live-source telemetry data is being retrieved.
+- [x] Audit and implement a safe high-impact 100× upgrade that improves performance, resilience, usability, and operational clarity without weakening source provenance, $0 operation, or scientific safeguards.

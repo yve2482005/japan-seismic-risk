@@ -7,12 +7,13 @@ import superjson from "superjson";
 import App from "./App";
 import { startLogin } from "./const";
 import "./index.css";
+import { QUERY_DEFAULTS } from "./lib/queryDefaults";
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => { void navigator.serviceWorker.register("/service-worker.js").catch(() => undefined); });
 }
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({ defaultOptions: QUERY_DEFAULTS });
 
 const redirectToLoginIfUnauthorized = (error: unknown) => {
   if (!(error instanceof TRPCClientError)) return;
