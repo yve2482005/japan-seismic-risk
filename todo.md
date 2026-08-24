@@ -135,3 +135,4 @@
 - [x] Add a saved local quiet-hours schedule that mutes foreground sound while retaining visual alerts and leaving device-level background notification controls unchanged.
 - [x] Add an accessible visible UI indicator whenever the saved quiet-hours schedule is currently muting foreground alert sounds.
 - [x] Add an accessible hover and keyboard-focus tooltip to the active Quiet Hours indicator with its local schedule and foreground-alert scope.
+- [x] Add a gentle reduced-motion-aware pulse animation to the active amber Quiet Hours indicator.

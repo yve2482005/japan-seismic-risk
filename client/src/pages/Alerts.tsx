@@ -281,7 +281,7 @@ export default function Alerts() {
         {quietHoursActive && <section role="status" aria-live="polite" className="mt-4 flex items-start gap-3 rounded-2xl border border-[#d98600] bg-[#fff4d6] p-4 text-[#633500] shadow-sm">
           <Tooltip>
             <TooltipTrigger asChild>
-              <span tabIndex={0} aria-label="Quiet Hours details" className="flex h-9 w-9 shrink-0 cursor-help items-center justify-center rounded-full bg-[#d97706] text-white outline-offset-2 focus-visible:outline-2 focus-visible:outline-[#633500]"><BellOff size={18} aria-hidden="true" /></span>
+              <span tabIndex={0} aria-label="Quiet Hours details" className="quiet-hours-indicator-pulse flex h-9 w-9 shrink-0 cursor-help items-center justify-center rounded-full bg-[#d97706] text-white outline-offset-2 focus-visible:outline-2 focus-visible:outline-[#633500]"><BellOff size={18} aria-hidden="true" /></span>
             </TooltipTrigger>
             <TooltipContent side="bottom" sideOffset={8} className="max-w-[min(20rem,calc(100vw-2rem))] bg-slate-950 px-3 py-2.5 text-left text-xs leading-5 text-white">
               <p className="font-black">Quiet Hours details</p>
