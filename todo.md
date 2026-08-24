@@ -113,3 +113,4 @@
 - [x] Remove the unnecessary pnpm cache dependency from the GitHub Actions OIDC delivery step and re-verify one manual collection run.
 - [x] Accept the collector’s canonical USGS attribution in background delivery while continuing to exclude JMA and other sources.
 - [x] Add an explicit subscription activation and recent-alert cutoff so a new device cannot receive historical alert backlog.
+- [x] Replace the M6+ foreground sound preview with a louder siren-style pattern while preserving browser and device volume limits.
