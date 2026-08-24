@@ -2,11 +2,14 @@ export type SoundPulse = { frequency: number; endFrequency?: number; delayMs: nu
 
 /** Returns a non-musical, short alert pattern. Browser audio is created only after user interaction or a live in-app alert. */
 export function soundPatternForMagnitude(magnitude: number): SoundPulse[] {
-  if (magnitude >= 6) return [
-    { frequency: 720, endFrequency: 1480, delayMs: 0, durationMs: 420, gain: 0.48, waveform: "sawtooth" },
-    { frequency: 1480, endFrequency: 720, delayMs: 450, durationMs: 420, gain: 0.48, waveform: "sawtooth" },
-    { frequency: 720, endFrequency: 1480, delayMs: 900, durationMs: 460, gain: 0.48, waveform: "sawtooth" },
-  ];
+  if (magnitude >= 6) return Array.from({ length: 10 }, (_, index) => ({
+    frequency: index % 2 === 0 ? 720 : 1480,
+    endFrequency: index % 2 === 0 ? 1480 : 720,
+    delayMs: index * 500,
+    durationMs: 500,
+    gain: 0.5,
+    waveform: "sawtooth" as OscillatorType,
+  }));
   if (magnitude >= 4) return [
     { frequency: 610, delayMs: 0, durationMs: 130, gain: 0.26, waveform: "triangle" },
     { frequency: 760, delayMs: 170, durationMs: 130, gain: 0.26, waveform: "triangle" },
@@ -16,7 +19,7 @@ export function soundPatternForMagnitude(magnitude: number): SoundPulse[] {
 }
 
 export function magnitudeSoundLabel(magnitude: number) {
-  if (magnitude >= 6) return "M6.0+ — loud siren preview";
+  if (magnitude >= 6) return "M6.0+ — 5-second loud siren preview";
   if (magnitude >= 4) return "M4.0–M5.9 — rapid alert pulse";
   return "Below M4.0 — standard single-tone";
 }
