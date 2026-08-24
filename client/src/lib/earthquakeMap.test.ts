@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isWithinJapanMapBounds, mapCoordinate, mapMarkerStyle } from "./earthquakeMap";
+import { isWithinJapanMapBounds, mapCoordinate, mapDistanceSegment, mapMarkerStyle } from "./earthquakeMap";
 
 describe("earthquake map helpers", () => {
   it("maps Japan-envelope coordinates into a safely visible plotting area", () => {
@@ -16,5 +16,9 @@ describe("earthquake map helpers", () => {
   it("does not misplace a user marker when the device is outside the Japan map envelope", () => {
     expect(isWithinJapanMapBounds(35.7, 139.7)).toBe(true);
     expect(isWithinJapanMapBounds(16.8, 96.2)).toBe(false);
+  });
+
+  it("positions an approximate distance line between two visible map points", () => {
+    expect(mapDistanceSegment({ left: 10, top: 20 }, { left: 40, top: 20 })).toMatchObject({ left: 10, top: 20, length: 30, angle: 0, labelLeft: 25, labelTop: 20 });
   });
 });

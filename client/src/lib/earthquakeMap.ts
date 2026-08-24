@@ -15,3 +15,16 @@ export function mapMarkerStyle(magnitude: number) {
   if (magnitude >= 5) return { label: "M5+", color: "#f79009", size: Math.min(46, 18 + magnitude * 5) };
   return { label: "Below M5", color: "#2782b5", size: Math.min(40, 18 + magnitude * 5) };
 }
+
+export function mapDistanceSegment(from: { left: number; top: number }, to: { left: number; top: number }) {
+  const deltaLeft = to.left - from.left;
+  const deltaTop = to.top - from.top;
+  return {
+    left: from.left,
+    top: from.top,
+    length: Math.hypot(deltaLeft, deltaTop),
+    angle: Math.atan2(deltaTop, deltaLeft) * 180 / Math.PI,
+    labelLeft: (from.left + to.left) / 2,
+    labelTop: (from.top + to.top) / 2,
+  };
+}
