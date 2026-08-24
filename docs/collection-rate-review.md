@@ -35,6 +35,24 @@ Do not alter the approved live USGS collection cadence or broaden the Japan enve
 
 A research-only inspection of the official December 2023 JMA earthquake-parameter ZIP returned HTTP 200 as a static 316 KB ZIP containing one 1.52 MB fixed-width text file. The file has 16,763 lines including three header lines, indicating approximately 16,760 candidate event lines for that month before parsing, validation, and source-specific quality checks. These records were not imported into the project.
 
+## Approved JMA Backfill Outcome
+
+The owner approved a **one-time, source-separated** import of the static JMA bulletin ZIP artifacts for 2023-09 through 2023-12. The manual GitHub Actions import completed on 2026-08-24 using only the documented archive URL pattern; it did not call JMA's current JSON endpoint or any earthquake-data API.
+
+| Measure | Result |
+| --- | ---: |
+| JMA validated raw records imported | 60,867 |
+| Archive period | 2023-09-01 to 2023-12-31 JST |
+| Invalid JMA rows rejected | 14,708 |
+| Rows outside approved Japan envelope | 2 |
+| Within-source duplicate IDs removed | 0 |
+| Possible current-USGS cross-source matches retained | 0 |
+| JMA model-quality records, magnitude ≥2.5 | 2,915 |
+| Source-separated history | 121.88 days |
+| Exact M4+/24h regional positive labels | 1,089 |
+
+The JMA source-specific quality gate is genuinely satisfied. Its chronological evaluation generated 12 **source-separated candidate reports** and did not promote any model or emit probabilities. The live dashboard continues to use only the USGS public monthly CSV for live activity and currently shows 83 USGS observations; it does not present JMA historical rows as live observations.
+
 ## Sources
 
 - https://earthquake.usgs.gov/earthquakes/feed/v1.0/csv.php
