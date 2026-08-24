@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mapCoordinate, mapMarkerStyle } from "./earthquakeMap";
+import { isWithinJapanMapBounds, mapCoordinate, mapMarkerStyle } from "./earthquakeMap";
 
 describe("earthquake map helpers", () => {
   it("maps Japan-envelope coordinates into a safely visible plotting area", () => {
@@ -11,5 +11,10 @@ describe("earthquake map helpers", () => {
     expect(mapMarkerStyle(4.9).label).toBe("Below M5");
     expect(mapMarkerStyle(5).label).toBe("M5+");
     expect(mapMarkerStyle(6).label).toBe("M6+");
+  });
+
+  it("does not misplace a user marker when the device is outside the Japan map envelope", () => {
+    expect(isWithinJapanMapBounds(35.7, 139.7)).toBe(true);
+    expect(isWithinJapanMapBounds(16.8, 96.2)).toBe(false);
   });
 });

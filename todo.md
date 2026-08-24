@@ -122,3 +122,4 @@
 - [x] Add a one-tap Test Alert control that exercises current foreground sound, visual-only mute, and visual effect settings without creating a real alert.
 - [x] Add a saved user-selectable dark mode that preserves alert visibility and low-light readability across the application.
 - [x] Improve the live USGS earthquake map view so users can clearly locate and inspect plotted event markers without implying official warning coverage.
+- [x] Add a clear Current Location control that places a browser-session-only user marker on the live map without persisting or sending precise location.

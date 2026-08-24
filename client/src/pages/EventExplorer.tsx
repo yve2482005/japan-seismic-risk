@@ -1,6 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { explorerDataState, filterLiveEvents, magnitudeBins, type EventFilters } from "@/lib/eventExplorer";
-import { mapCoordinate, mapMarkerStyle } from "@/lib/earthquakeMap";
+import { isWithinJapanMapBounds, mapCoordinate, mapMarkerStyle } from "@/lib/earthquakeMap";
 import { JAPAN_REGIONS, type JapanRegion, type SeismicEvent } from "@shared/seismic";
 import { ArrowLeft, Crosshair, Info, LocateFixed, MapPin, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -15,21 +15,38 @@ export default function EventExplorer() {
   const [filters, setFilters] = useState<EventFilters>({ period: "7d", minimumMagnitude: 0, region: "All", query: "" });
   const [selected, setSelected] = useState<SeismicEvent | null>(null);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [locationStatus, setLocationStatus] = useState("Your location is not shown.");
   const dataState = explorerDataState({ isLoading: snapshot.isLoading, isError: snapshot.isError, hasData: Boolean(snapshot.data) });
   const events = useMemo(() => filterLiveEvents(snapshot.data?.events ?? [], filters, new Date()), [snapshot.data?.events, filters]);
   const bins = useMemo(() => magnitudeBins(events), [events]);
   const maxBin = Math.max(...bins.map(bin => bin.count), 1);
   const activeEvent = selected && events.some(event => event.eventId === selected.eventId) ? selected : events[0] ?? null;
+  const locationInMap = location ? isWithinJapanMapBounds(location.latitude, location.longitude) : false;
 
   useEffect(() => {
     if (selected && !events.some(event => event.eventId === selected.eventId)) setSelected(events[0] ?? null);
   }, [events, selected]);
 
-  const requestLocation = () => navigator.geolocation?.getCurrentPosition(
-    position => setLocation({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
-    () => setLocation(null),
-    { enableHighAccuracy: false, maximumAge: 300_000, timeout: 10_000 },
-  );
+  const requestLocation = () => {
+    if (!("geolocation" in navigator)) {
+      setLocation(null);
+      setLocationStatus("This browser does not support Current Location.");
+      return;
+    }
+    setLocationStatus("Finding your current location…");
+    navigator.geolocation.getCurrentPosition(
+      position => {
+        const nextLocation = { latitude: position.coords.latitude, longitude: position.coords.longitude };
+        setLocation(nextLocation);
+        setLocationStatus(isWithinJapanMapBounds(nextLocation.latitude, nextLocation.longitude) ? "Current location is shown on the Japan map for this browser session." : "Your location is outside this Japan-only map view, so no map marker is placed.");
+      },
+      () => {
+        setLocation(null);
+        setLocationStatus("Location was not shared. No user marker is shown.");
+      },
+      { enableHighAccuracy: false, maximumAge: 300_000, timeout: 10_000 },
+    );
+  };
 
   if (dataState === "loading") return <ExplorerState title="Live events ကို စစ်ဆေးနေပါသည်…" copy="USGS live dataset ကို ဖတ်နေပါသည်။ အချိန်အနည်းငယ်စောင့်ပါ။" />;
   if (dataState === "error") return <ExplorerState title="Live events ကို ယာယီမဖတ်နိုင်သေးပါ" copy="Data မရရှိချိန်တွင် empty history ကို မပြပါ။ Source connection ကို ပြန်စစ်ရန်အောက်ပါ button ကိုနှိပ်ပါ။" onRetry={() => snapshot.refetch()} />;
@@ -44,16 +61,16 @@ export default function EventExplorer() {
 
         <section className="mt-6 grid gap-6 lg:grid-cols-[1.42fr_0.58fr]">
           <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between gap-3"><div><p className="text-[10px] font-extrabold tracking-[0.18em] text-slate-500">INTERACTIVE MAP</p><h2 className="mt-1 text-xl font-black">{events.length} visible events</h2></div><button onClick={requestLocation} className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold hover:border-slate-950"><Crosshair size={14} />{location ? "Location shown" : "Show my location"}</button></div>
+            <div className="flex items-center justify-between gap-3"><div><p className="text-[10px] font-extrabold tracking-[0.18em] text-slate-500">INTERACTIVE MAP</p><h2 className="mt-1 text-xl font-black">{events.length} visible events</h2></div><div className="flex shrink-0 gap-2"><button onClick={requestLocation} className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold hover:border-slate-950"><Crosshair size={14} />Current Location</button>{location && <button onClick={() => { setLocation(null); setLocationStatus("Current location was cleared from this browser session."); }} className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold hover:border-slate-950">Clear</button>}</div></div><p role="status" className="mt-3 text-xs leading-5 text-slate-500">{locationStatus} Precise location is never sent to the server or saved after this session.</p>
             <div className="relative mt-5 aspect-[1.16/1] overflow-hidden rounded-2xl border border-slate-200 bg-[radial-gradient(circle_at_70%_30%,#f9fdff_0%,#dceff8_38%,#c5e0ed_100%)]">
               <div className="absolute inset-0 opacity-40 [background-image:linear-gradient(#85a9bd_1px,transparent_1px),linear-gradient(90deg,#85a9bd_1px,transparent_1px)] [background-size:20%_20%]" />
               <div className="absolute left-[16%] top-[12%] h-[68%] w-[60%] rotate-[22deg] rounded-[45%_55%_50%_38%] border border-white/80 bg-white/20 shadow-[0_10px_30px_rgba(70,120,148,.12)]" aria-hidden="true" />
               <p className="absolute left-4 top-4 text-[10px] font-extrabold tracking-[0.16em] text-slate-600">APPROXIMATE JAPAN COORDINATE MAP</p><p className="absolute right-4 top-4 rounded-full bg-white/75 px-2 py-1 text-[10px] font-bold text-slate-700">USGS coordinates</p>
               <span className="absolute left-[58%] top-[19%] text-[9px] font-extrabold tracking-wider text-slate-500">HOKKAIDO</span><span className="absolute left-[51%] top-[46%] text-[9px] font-extrabold tracking-wider text-slate-500">HONSHU</span><span className="absolute left-[38%] top-[70%] text-[9px] font-extrabold tracking-wider text-slate-500">KYUSHU</span>
               {events.map(event => { const point = mapCoordinate(event.latitude, event.longitude); const style = mapMarkerStyle(event.magnitude); const selectedMarker = activeEvent?.eventId === event.eventId; return <button key={event.eventId} onClick={() => setSelected(event)} title={`M${event.magnitude.toFixed(1)} · ${event.locality}`} style={{ left: `${point.left}%`, top: `${point.top}%`, width: `${style.size}px`, height: `${style.size}px`, backgroundColor: style.color }} className={`absolute z-10 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white text-[9px] font-black text-white shadow-[0_4px_14px_rgba(18,45,61,.42)] transition hover:scale-110 focus-visible:scale-110 ${selectedMarker ? "ring-4 ring-slate-950/30 scale-110" : ""}`} aria-label={`Select M${event.magnitude.toFixed(1)} event at ${event.locality}`}>M{event.magnitude.toFixed(1)}</button>; })}
-              {location && (() => { const point = mapCoordinate(location.latitude, location.longitude); return <span style={{ left: `${point.left}%`, top: `${point.top}%` }} className="absolute z-20 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-slate-950 bg-white px-1 py-0.5 text-[10px] font-black text-slate-950 shadow" aria-label="Your session location"><LocateFixed size={12} /></span>; })()}
+              {locationInMap && location && (() => { const point = mapCoordinate(location.latitude, location.longitude); return <span style={{ left: `${point.left}%`, top: `${point.top}%` }} className="absolute z-20 inline-flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full border-2 border-slate-950 bg-white px-1.5 py-1 text-[10px] font-black text-slate-950 shadow" aria-label="Your current browser-session location"><LocateFixed size={12} />You</span>; })()}
               {!events.length && <div className="absolute inset-0 z-20 grid place-items-center bg-white/70 p-6 text-center"><p className="rounded-xl bg-white px-4 py-3 text-sm font-bold text-slate-600 shadow-sm">ဒီ filter အတွက် map ပေါ်တွင် live event မတွေ့ရှိပါ။</p></div>}
-              <div className="absolute bottom-3 left-3 right-3 z-20 flex flex-wrap gap-2 rounded-xl bg-white/90 px-3 py-2 text-[10px] font-bold text-slate-700 shadow-sm"><span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-[#2782b5]" />Below M5</span><span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-[#f79009]" />M5+</span><span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-[#d92d20]" />M6+</span>{location && <span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-full border border-slate-950 bg-white" />Your location</span>}</div>
+              <div className="absolute bottom-3 left-3 right-3 z-20 flex flex-wrap gap-2 rounded-xl bg-white/90 px-3 py-2 text-[10px] font-bold text-slate-700 shadow-sm"><span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-[#2782b5]" />Below M5</span><span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-[#f79009]" />M5+</span><span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-[#d92d20]" />M6+</span>{locationInMap && <span><i className="mr-1 inline-block h-2.5 w-2.5 rounded-full border border-slate-950 bg-white" />You</span>}</div>
             </div>
           </article>
           <EventDetail event={activeEvent} />
