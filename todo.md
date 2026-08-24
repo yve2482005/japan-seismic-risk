@@ -73,3 +73,4 @@
 - [x] Obtain explicit owner approval for a source-separated one-time JMA historical ZIP backfill, or retain USGS as the sole source; do not use NIED, EMSC web services, or overlapping USGS feeds.
 - [x] Implement and run the owner-approved static JMA 2023-09 to 2023-12 source-separated backfill with provenance, source-local deduplication, explicit cross-source matching status, and no JMA current endpoint usage.
 - [x] Verify the JMA-only quality gate and chronological candidate evaluation without production promotion, live probabilities, or a change to the hourly USGS collector.
+- [x] Prepare production-only USGS score generation that writes probability rows only after a genuinely promoted USGS model version exists.
