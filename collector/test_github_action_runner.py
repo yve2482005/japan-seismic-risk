@@ -2,7 +2,7 @@ import json
 import unittest
 from unittest.mock import patch
 
-from collector.github_action_runner import materialize_features, normalized_records, positive_label_count, production_prediction_rows, promote_rows, quality_gate, risk_level, select_production_candidate
+from collector.github_action_runner import USGS_LIVE_TAB, collect, materialize_features, normalized_records, positive_label_count, production_prediction_rows, promote_rows, quality_gate, risk_level, select_production_candidate
 
 
 class GitHubActionRunnerTests(unittest.TestCase):
@@ -49,6 +49,12 @@ class GitHubActionRunnerTests(unittest.TestCase):
 
     def test_probability_categories_are_derived_from_probability_values(self):
         self.assertEqual([risk_level(value) for value in (0.01, 0.06, 0.16, 0.31)], ["LOW", "MODERATE", "ELEVATED", "HIGH"])
+
+    def test_usgs_collection_targets_the_dedicated_live_tab(self):
+        csv_text = "time,updated,latitude,longitude,depth,mag,id,url,magType,place,type\n2026-08-24T00:00:00Z,2026-08-24T00:00:01Z,32.2,132.0,10,3.1,us-test,https://example.test,mb,Kyushu,earthquake\n"
+        with patch("collector.github_action_runner.download_csv", return_value=csv_text), patch("collector.github_action_runner.upsert_raw_records", return_value={"appended": 1, "updated": 0, "unchanged": 0}) as upsert, patch("collector.github_action_runner.append_system_log"):
+            collect("sheet-id")
+        self.assertEqual(upsert.call_args.kwargs["tab"], USGS_LIVE_TAB)
 
     def test_selects_only_the_best_calibrated_candidate_for_production(self):
         def candidate(pr_auc: float, brier: float, ece: float):
