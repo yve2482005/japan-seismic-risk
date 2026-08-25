@@ -103,6 +103,7 @@ export default function Alerts() {
   const [location, setLocation] = useState<SessionLocation>(null);
   const [locationMessage, setLocationMessage] = useState("Location is not enabled.");
   const [soundMessage, setSoundMessage] = useState("Choose a magnitude tier to test its in-app sound and visual alert.");
+  const [pushMessage, setPushMessage] = useState("This device subscription has not been updated in this session.");
   const [currentTime, setCurrentTime] = useState(() => new Date());
   const seededAlertIds = useRef<Set<string> | null>(null);
   const quietHours = { enabled: preferences.quietHoursEnabled, start: preferences.quietHoursStart, end: preferences.quietHoursEnd };
@@ -161,18 +162,23 @@ export default function Alerts() {
   const enableBackgroundPush = async () => {
     if (!isAuthenticated) return startLogin();
     if (!pushConfig.data?.publicKey) {
-      setSoundMessage("Preparing secure background notifications. Please try again shortly.");
+      setPushMessage("Secure notification setup is still loading. Please try again shortly.");
       return;
     }
+    setPushMessage("Registering this Android browser for background notifications…");
     try {
       const subscription = await getBrowserPushSubscription(pushConfig.data.publicKey);
       await subscribePush.mutateAsync({
         subscription,
         preferences: { minimumMagnitude: preferences.minimumMagnitude, regions: preferences.regions },
       });
-      setSoundMessage("Background notification is enabled for this device. New matching USGS alerts can arrive while the app is closed.");
+      const message = "Background notification is enabled for this Android device. New matching USGS alerts can arrive while the app is closed.";
+      setPushMessage(message);
+      setSoundMessage(message);
     } catch (error) {
-      setSoundMessage(error instanceof Error ? error.message : "Unable to enable background notifications.");
+      const message = error instanceof Error ? error.message : "Unable to enable background notifications.";
+      setPushMessage(message);
+      setSoundMessage(message);
     }
   };
 
@@ -180,9 +186,13 @@ export default function Alerts() {
     try {
       const endpoint = await removeBrowserPushSubscription();
       if (endpoint) await unsubscribePush.mutateAsync({ endpoint });
-      setSoundMessage("Background notification has been turned off on this device.");
+      const message = "Background notification has been turned off on this device.";
+      setPushMessage(message);
+      setSoundMessage(message);
     } catch {
-      setSoundMessage("Unable to turn off this device’s background notification.");
+      const message = "Unable to turn off this device’s background notification.";
+      setPushMessage(message);
+      setSoundMessage(message);
     }
   };
 
@@ -310,6 +320,7 @@ export default function Alerts() {
                 <Bell size={15} />{isAuthenticated ? (pushStatus.data?.enabled ? "Update this device" : "Enable when app is closed") : "Sign in to enable"}
               </button>
               {pushStatus.data?.enabled && <button onClick={disableBackgroundPush} className="mt-2 ml-2 inline-flex rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold">Turn off</button>}
+              <p role="status" aria-live="polite" className={`mt-3 rounded-xl border px-3 py-2 text-xs leading-5 ${pushStatus.data?.enabled ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-slate-50 text-slate-600"}`}>{pushStatus.data?.enabled ? "ဒီ account အတွက် Android device subscription ချိတ်ဆက်ထားသည်။" : pushMessage}</p>
               <p className="mt-2 text-xs leading-5 text-slate-500">Matching USGS alert အသစ်များကို app ပိတ်ထားချိန်တွင် ပို့နိုင်ရန် account နှင့်ဤ device ကိုသာချိတ်ပါသည်။ Silent/DND ကို ကျော်လွှားမပေးနိုင်ပါ။ iPhone/iPad တွင် Home Screen app အဖြစ် install လုပ်ထားရနိုင်ပါသည်။</p>
             </div>
           </div>

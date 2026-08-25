@@ -151,3 +151,4 @@
 # Overall automation upgrade scope
 
 This upgrade may automate scheduled source collection, bounded retries, authenticated telemetry, dashboard refresh and reliability warnings. Background push delivery remains opt-in and permission-bound; local location remains session-only; model promotion remains quality-gated; official warnings and exact predictions remain out of scope.
+- [x] Diagnose and fix Android HTTPS background-push subscription status not updating after notification permission is granted, without fabricating a push event or bypassing device controls.
