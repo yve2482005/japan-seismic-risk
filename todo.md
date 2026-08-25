@@ -141,3 +141,4 @@
 - [x] Audit and implement a safe high-impact 100× upgrade that improves performance, resilience, usability, and operational clarity without weakening source provenance, $0 operation, or scientific safeguards.
 - [x] Add bounded idempotent exponential-backoff retries for transient Google Sheets service failures in the scheduled USGS collector, with regression coverage and no source or deduplication changes.
 - [x] Add a truthful dashboard widget for scheduled collection success rate and retry activity, including an explicit unavailable state until source-backed telemetry exists.
+- [x] Add an accessible persistent warning banner and one-time toast when source-backed collection success rate is below 80%, while suppressing alerts when telemetry is unavailable.

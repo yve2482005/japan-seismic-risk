@@ -1,7 +1,9 @@
 import { trpc } from "@/lib/trpc";
+import { hasLowCollectionSuccessRate, type CollectionReliability } from "@/lib/collectionReliability";
 import type { RegionActivity } from "@shared/seismic";
 import { AlertTriangle, BellRing, ChartNoAxesCombined, Clock3, LoaderCircle, MapPinned, RefreshCcw, RotateCcw, ShieldCheck, Waves } from "lucide-react";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import { toast } from "sonner";
 import { Link } from "wouter";
 import { activityLabel, modelStatusCopy } from "./dashboardCopy";
 
@@ -39,6 +41,19 @@ export default function Home() {
   const hasProductionModel = data.model.status === "production";
   const sourceActive = data.collection.status === "active";
   const isRefreshing = snapshot.isFetching && !snapshot.isLoading;
+  const reliability = data.system.collectionReliability as CollectionReliability | null;
+  const hasLowReliability = hasLowCollectionSuccessRate(reliability);
+  const wasLowReliability = useRef(false);
+
+  useEffect(() => {
+    if (!hasLowReliability) {
+      wasLowReliability.current = false;
+      return;
+    }
+    if (wasLowReliability.current) return;
+    wasLowReliability.current = true;
+    toast.warning("Data collection reliability is below 80%.", { id: "collection-reliability-low-success", description: "The dashboard is showing the source-backed workflow result. Last verified data remains visible." });
+  }, [hasLowReliability]);
 
   return (
     <main className="min-h-screen bg-[#f5f7f8] text-slate-950 selection:bg-[#c8dded]">
@@ -59,6 +74,8 @@ export default function Home() {
           <div className="relative mt-6 flex items-center gap-2 text-xs text-slate-300"><Clock3 size={14} />{isRefreshing ? "Latest verified data ကို ထိန်းထားပြီး source update ကို စစ်ဆေးနေသည်" : `နောက်ဆုံး update: ${jstTime(data.collection.lastSuccess)} (Japan time)`}</div>
         </section>
 
+        {hasLowReliability && reliability && <section role="alert" aria-live="assertive" className="mt-6 rounded-3xl border border-[#f4b183] bg-[#fff5eb] p-4 text-[#8a2c0d] shadow-sm sm:p-5"><div className="flex items-start gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-[#ffe0c2]"><AlertTriangle size={19} /></span><div><p className="text-[10px] font-extrabold tracking-[0.16em]">COLLECTION WARNING</p><h2 className="mt-1 text-lg font-black">Data collection success rate သည် 80% အောက်ရှိနေသည်</h2><p className="mt-1 text-sm leading-6">Recent {reliability.windowRuns} runs အတွင်း {reliability.successRatePercent}% success ရှိပြီး {reliability.failures} failed run နှင့် {reliability.retryAttempts} retry attempts မှတ်တမ်းတင်ထားပါသည်။ နောက်ဆုံးအတည်ပြု data ကို dashboard တွင် ဆက်ပြထားပါသည်။</p></div></div></section>}
+
         <section className="mt-6 grid gap-3 sm:grid-cols-3" aria-label="Recent activity summary"><SummaryCard label="လွန်ခဲ့သော 24 နာရီ" value={activityLabel(summary.events24h)} caption="မှတ်တမ်းတင်ထားသော events" /><SummaryCard label="လွန်ခဲ့သော 7 ရက်" value={activityLabel(summary.events7d)} caption="မှတ်တမ်းတင်ထားသော events" /><SummaryCard label="7 ရက်အတွင်း အမြင့်ဆုံး" value={summary.maxMagnitude7d === null ? "မတွေ့ရှိပါ" : `M${summary.maxMagnitude7d.toFixed(1)}`} caption="verified record များမှ" /></section>
 
         <section className="mt-6 grid gap-3 sm:grid-cols-3" aria-label="Monitoring shortcuts"><QuickAction href="/events" icon={<MapPinned size={18} />} eyebrow="EXPLORE" title="Live map" detail="Epicenter နှင့် approximate distance ကိုကြည့်ပါ" /><QuickAction href="/alerts" icon={<BellRing size={18} />} eyebrow="CONTROL" title="Alert center" detail="Sound, quiet hours နှင့် notification ကိုစီမံပါ" /><QuickAction href="/safety" icon={<ShieldCheck size={18} />} eyebrow="PREPARE" title="Safety guide" detail="Official-boundary safety information ကိုကြည့်ပါ" /></section>
@@ -78,7 +95,7 @@ export default function Home() {
 }
 
 function SummaryCard({ label, value, caption }: { label: string; value: string; caption: string }) { return <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><p className="text-[10px] font-extrabold tracking-[0.16em] text-slate-500">{label}</p><p className="mt-2 text-2xl font-black tracking-tight">{value}</p><p className="mt-1 text-xs text-slate-500">{caption}</p></article>; }
-function CollectionReliability({ reliability }: { reliability: { windowRuns: number; successes: number; failures: number; successRatePercent: number; retryAttempts: number; latestStatus: "success" | "failure"; latestReportedAt: string } | null }) { return <section aria-labelledby="collection-reliability-title" className="mt-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"><div className="flex items-start gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-[#e4f3fb] text-[#14567d]"><ChartNoAxesCombined size={19} /></span><div><p className="text-[10px] font-extrabold tracking-[0.16em] text-slate-500">COLLECTION RELIABILITY</p><h2 id="collection-reliability-title" className="mt-1 text-xl font-black">Data collection အခြေအနေ</h2></div></div>{reliability ? <div className="mt-5 grid gap-3 sm:grid-cols-3"><ReliabilityMetric label="Success rate" value={`${reliability.successRatePercent}%`} detail={`${reliability.successes}/${reliability.windowRuns} recent runs`} /><ReliabilityMetric label="Retry attempts" value={String(reliability.retryAttempts)} detail="recent successful/failed runs" icon={<RotateCcw size={14} />} /><ReliabilityMetric label="Latest run" value={reliability.latestStatus === "success" ? "Success" : "Failed"} detail={`${reliability.failures} failures in window`} /></div> : <p className="mt-4 rounded-2xl bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">GitHub Actions run telemetry ကို မရသေးပါ။ ပထမ workflow report ရောက်လာပြီးမှ success rate နှင့် retry count ကို အမှန်အတိုင်းပြပါမည်။</p>}<p className="mt-4 text-xs leading-5 text-slate-500">USGS event data count မဟုတ်ပါ။ Scheduled workflow ၏ source-backed run outcome နှင့် Sheets retry attempts ကိုသာပြသပါသည်။</p></section>; }
+function CollectionReliability({ reliability }: { reliability: CollectionReliability | null }) { return <section aria-labelledby="collection-reliability-title" className="mt-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"><div className="flex items-start gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-[#e4f3fb] text-[#14567d]"><ChartNoAxesCombined size={19} /></span><div><p className="text-[10px] font-extrabold tracking-[0.16em] text-slate-500">COLLECTION RELIABILITY</p><h2 id="collection-reliability-title" className="mt-1 text-xl font-black">Data collection အခြေအနေ</h2></div></div>{reliability ? <div className="mt-5 grid gap-3 sm:grid-cols-3"><ReliabilityMetric label="Success rate" value={`${reliability.successRatePercent}%`} detail={`${reliability.successes}/${reliability.windowRuns} recent runs`} /><ReliabilityMetric label="Retry attempts" value={String(reliability.retryAttempts)} detail="recent successful/failed runs" icon={<RotateCcw size={14} />} /><ReliabilityMetric label="Latest run" value={reliability.latestStatus === "success" ? "Success" : "Failed"} detail={`${reliability.failures} failures in window`} /></div> : <p className="mt-4 rounded-2xl bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">GitHub Actions run telemetry ကို မရသေးပါ။ ပထမ workflow report ရောက်လာပြီးမှ success rate နှင့် retry count ကို အမှန်အတိုင်းပြပါမည်။</p>}<p className="mt-4 text-xs leading-5 text-slate-500">USGS event data count မဟုတ်ပါ။ Scheduled workflow ၏ source-backed run outcome နှင့် Sheets retry attempts ကိုသာပြသပါသည်။</p></section>; }
 function ReliabilityMetric({ label, value, detail, icon }: { label: string; value: string; detail: string; icon?: React.ReactNode }) { return <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"><p className="text-[10px] font-extrabold tracking-[0.14em] text-slate-500">{label}</p><p className="mt-1 flex items-center gap-1.5 text-2xl font-black">{icon}{value}</p><p className="mt-1 text-xs leading-5 text-slate-500">{detail}</p></div>; }
 function QuickAction({ href, icon, eyebrow, title, detail }: { href: string; icon: React.ReactNode; eyebrow: string; title: string; detail: string }) { return <Link href={href} className="seismic-quick-action group rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><span className="seismic-quick-action-icon">{icon}</span><span className="ml-3 inline-block min-w-0 align-middle"><span className="block text-[10px] font-extrabold tracking-[0.16em] text-slate-500">{eyebrow}</span><span className="mt-1 block text-sm font-black">{title}</span><span className="mt-1 block text-xs leading-5 text-slate-500">{detail}</span></span></Link>; }
 function SimpleProbability({ label, value }: { label: string; value: string }) { return <div className="rounded-2xl border border-[#b9d2e2] bg-white px-4 py-3"><p className="text-[10px] font-extrabold tracking-[0.15em] text-slate-500">{label}</p><p className="mt-1 text-xl font-black">{value}</p></div>; }
