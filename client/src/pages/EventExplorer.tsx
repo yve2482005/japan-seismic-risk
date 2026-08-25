@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { LiveDataLoadingState, LiveDataErrorState } from "@/components/LiveDataLoadingState";
 import { explorerDataState, filterLiveEvents, magnitudeBins, type EventFilters } from "@/lib/eventExplorer";
 import { CLOSE_DISTANCE_SAFETY } from "@/lib/closeDistanceSafety";
 import { approximateDistanceKm } from "@/lib/geo";
@@ -52,8 +53,8 @@ export default function EventExplorer() {
     );
   };
 
-  if (dataState === "loading") return <ExplorerState title="Live events ကို စစ်ဆေးနေပါသည်…" copy="USGS live dataset ကို ဖတ်နေပါသည်။ အချိန်အနည်းငယ်စောင့်ပါ။" />;
-  if (dataState === "error") return <ExplorerState title="Live events ကို ယာယီမဖတ်နိုင်သေးပါ" copy="Data မရရှိချိန်တွင် empty history ကို မပြပါ။ Source connection ကို ပြန်စစ်ရန်အောက်ပါ button ကိုနှိပ်ပါ။" onRetry={() => snapshot.refetch()} />;
+  if (dataState === "loading") return <LiveDataLoadingState title="Live events ကို စစ်ဆေးနေပါသည်…" detail="USGS live dataset နှင့် map metadata ကို ဖတ်နေပါသည်။" />;
+  if (dataState === "error") return <LiveDataErrorState title="Live events ကို ယာယီမဖတ်နိုင်သေးပါ" detail="Data မရရှိချိန်တွင် empty history ကို မပြပါ။ Source connection ကို ပြန်စစ်ပါ။" onRetry={() => void snapshot.refetch()} />;
 
   return (
     <main className="min-h-screen bg-[#f5f7f8] text-slate-950">

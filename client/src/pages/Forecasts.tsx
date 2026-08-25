@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { LiveDataErrorState, LiveDataLoadingState } from "@/components/LiveDataLoadingState";
 import { ArrowLeft, CircleAlert, ClipboardCheck, LockKeyhole, TrendingUp } from "lucide-react";
 import { Link } from "wouter";
 
@@ -7,8 +8,8 @@ function percentage(value: number | null) { return value === null ? "—" : `${(
 
 export default function Forecasts() {
   const snapshot = trpc.seismic.snapshot.useQuery();
-  if (snapshot.isLoading) return <ForecastState title="Model status ကို စစ်ဆေးနေပါသည်…" />;
-  if (snapshot.isError || !snapshot.data) return <ForecastState title="Model status ကို ယာယီမဖတ်နိုင်သေးပါ" retry={() => snapshot.refetch()} />;
+  if (snapshot.isLoading) return <LiveDataLoadingState title="Model status ကို စစ်ဆေးနေပါသည်…" detail="USGS-only model gate နှင့် forecast outcome metadata ကို ဖတ်နေပါသည်။" compact />;
+  if (snapshot.isError || !snapshot.data) return <LiveDataErrorState title="Model status ကို ယာယီမဖတ်နိုင်သေးပါ" detail="Forecast page ကို source data ပြန်ရရှိသည့်အထိ မပြသပါ။ Connection ကို ပြန်စစ်ပါ။" onRetry={() => void snapshot.refetch()} />;
   const { model, modelHistory, regions, forecastOutcomes } = snapshot.data;
   const production = model.status === "production";
   return <main className="min-h-screen bg-[#f5f7f8] text-slate-950"><header className="border-b border-slate-200 bg-white"><div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-4 sm:px-8"><Link href="/" className="inline-flex items-center gap-2 text-sm font-black"><ArrowLeft size={17} />Live monitor</Link><p className="text-xs font-bold text-slate-500">Forecasts & model history</p></div></header><div className="mx-auto max-w-5xl px-5 py-7 sm:px-8 sm:py-10">

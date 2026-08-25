@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { LiveDataErrorState, LiveDataLoadingState } from "@/components/LiveDataLoadingState";
 import { ArrowLeft, BellOff, CheckCircle2, CircleAlert, Database, RefreshCcw, ServerCog } from "lucide-react";
 import { Link } from "wouter";
 
@@ -7,8 +8,8 @@ function statusLabel(status: string) { return ({ active: "Active", delayed: "Del
 
 export default function SystemHealth() {
   const snapshot = trpc.seismic.snapshot.useQuery();
-  if (snapshot.isLoading) return <HealthState title="System status ကို စစ်ဆေးနေပါသည်…" />;
-  if (snapshot.isError || !snapshot.data) return <HealthState title="System status ကို ယာယီမဖတ်နိုင်သေးပါ" retry={() => snapshot.refetch()} />;
+  if (snapshot.isLoading) return <LiveDataLoadingState title="System status ကို စစ်ဆေးနေပါသည်…" detail="USGS source freshness၊ data-quality checks နှင့် model gate state ကို ဖတ်နေပါသည်။" compact />;
+  if (snapshot.isError || !snapshot.data) return <LiveDataErrorState title="System status ကို ယာယီမဖတ်နိုင်သေးပါ" detail="Live source status မရရှိသေးပါ။ အတည်မပြုနိုင်သော health state ကို မပြသပါ။" onRetry={() => void snapshot.refetch()} />;
   const { system, collection, model } = snapshot.data;
   const statusClass = system.source.status === "active" ? "bg-emerald-100 text-emerald-800" : system.source.status === "delayed" ? "bg-amber-100 text-amber-800" : "bg-rose-100 text-rose-800";
   return <main className="min-h-screen bg-[#f5f7f8] text-slate-950"><header className="border-b border-slate-200 bg-white"><div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-4 sm:px-8"><Link href="/" className="inline-flex items-center gap-2 text-sm font-black"><ArrowLeft size={17} />Live monitor</Link><p className="text-xs font-bold text-slate-500">System health</p></div></header><div className="mx-auto max-w-5xl px-5 py-7 sm:px-8 sm:py-10">

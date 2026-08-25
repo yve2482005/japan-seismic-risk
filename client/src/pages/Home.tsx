@@ -1,6 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { hasLowCollectionSuccessRate, type CollectionReliability } from "@/lib/collectionReliability";
 import { automationStatusLabel, automationStatusToneClass, getAutomationStatus, type AutomationStatus } from "@/lib/automationStatus";
+import { LiveDataErrorState, LiveDataLoadingState } from "@/components/LiveDataLoadingState";
 import type { RegionActivity } from "@shared/seismic";
 import { AlertTriangle, BellRing, ChartNoAxesCombined, Clock3, LoaderCircle, MapPinned, RefreshCcw, RotateCcw, ShieldCheck, Waves } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
@@ -49,8 +50,8 @@ export default function Home() {
     toast.warning("Data collection reliability is below 80%.", { id: "collection-reliability-low-success", description: "The dashboard is showing the source-backed workflow result. Last verified data remains visible." });
   }, [hasLowReliability]);
 
-  if (snapshot.isLoading) return <main className="grid min-h-screen place-items-center bg-[#f5f7f8] px-6 text-center text-sm font-semibold text-slate-600">Live data ကို စစ်ဆေးနေပါသည်…</main>;
-  if (!data || !summary) return <main className="grid min-h-screen place-items-center bg-[#f5f7f8] px-6 text-center"><div><p className="text-lg font-black text-slate-900">Data ကို ယာယီမဖတ်နိုင်သေးပါ</p><button onClick={() => snapshot.refetch()} className="mt-4 rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white">ပြန်စစ်ရန်</button></div></main>;
+  if (snapshot.isLoading) return <LiveDataLoadingState title="Live data ကို စစ်ဆေးနေပါသည်…" detail="USGS verified dataset နှင့် system telemetry ကို ဖတ်နေပါသည်။" />;
+  if (!data || !summary) return <LiveDataErrorState title="Data ကို ယာယီမဖတ်နိုင်သေးပါ" detail="Live source connection ကို ပြန်စစ်ပါ။ အတည်မပြုရသေးသော data ကို မပြသပါ။" onRetry={() => void snapshot.refetch()} />;
 
   const hasProductionModel = data.model.status === "production";
   const sourceActive = data.collection.status === "active";
