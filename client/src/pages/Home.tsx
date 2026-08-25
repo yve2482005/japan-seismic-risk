@@ -34,14 +34,7 @@ export default function Home() {
     const exampleSevenDayProbability = data.regions.find(region => region.probabilityM5_7d !== null)?.probabilityM5_7d ?? null;
     return { events24h, events7d, maxMagnitude7d: magnitudes.length ? Math.max(...magnitudes) : null, exampleProbability, exampleSevenDayProbability };
   }, [data]);
-
-  if (snapshot.isLoading) return <main className="grid min-h-screen place-items-center bg-[#f5f7f8] px-6 text-center text-sm font-semibold text-slate-600">Live data ကို စစ်ဆေးနေပါသည်…</main>;
-  if (!data || !summary) return <main className="grid min-h-screen place-items-center bg-[#f5f7f8] px-6 text-center"><div><p className="text-lg font-black text-slate-900">Data ကို ယာယီမဖတ်နိုင်သေးပါ</p><button onClick={() => snapshot.refetch()} className="mt-4 rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white">ပြန်စစ်ရန်</button></div></main>;
-
-  const hasProductionModel = data.model.status === "production";
-  const sourceActive = data.collection.status === "active";
-  const isRefreshing = snapshot.isFetching && !snapshot.isLoading;
-  const reliability = data.system.collectionReliability as CollectionReliability | null;
+  const reliability = data?.system.collectionReliability as CollectionReliability | null | undefined;
   const hasLowReliability = hasLowCollectionSuccessRate(reliability);
   const wasLowReliability = useRef(false);
 
@@ -54,6 +47,13 @@ export default function Home() {
     wasLowReliability.current = true;
     toast.warning("Data collection reliability is below 80%.", { id: "collection-reliability-low-success", description: "The dashboard is showing the source-backed workflow result. Last verified data remains visible." });
   }, [hasLowReliability]);
+
+  if (snapshot.isLoading) return <main className="grid min-h-screen place-items-center bg-[#f5f7f8] px-6 text-center text-sm font-semibold text-slate-600">Live data ကို စစ်ဆေးနေပါသည်…</main>;
+  if (!data || !summary) return <main className="grid min-h-screen place-items-center bg-[#f5f7f8] px-6 text-center"><div><p className="text-lg font-black text-slate-900">Data ကို ယာယီမဖတ်နိုင်သေးပါ</p><button onClick={() => snapshot.refetch()} className="mt-4 rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white">ပြန်စစ်ရန်</button></div></main>;
+
+  const hasProductionModel = data.model.status === "production";
+  const sourceActive = data.collection.status === "active";
+  const isRefreshing = snapshot.isFetching && !snapshot.isLoading;
 
   return (
     <main className="min-h-screen bg-[#f5f7f8] text-slate-950 selection:bg-[#c8dded]">
