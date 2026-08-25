@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { hasLowCollectionSuccessRate, type CollectionReliability } from "@/lib/collectionReliability";
+import { automationStatusLabel, automationStatusToneClass, getAutomationStatus, type AutomationStatus } from "@/lib/automationStatus";
 import type { RegionActivity } from "@shared/seismic";
 import { AlertTriangle, BellRing, ChartNoAxesCombined, Clock3, LoaderCircle, MapPinned, RefreshCcw, RotateCcw, ShieldCheck, Waves } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
@@ -54,6 +55,13 @@ export default function Home() {
   const hasProductionModel = data.model.status === "production";
   const sourceActive = data.collection.status === "active";
   const isRefreshing = snapshot.isFetching && !snapshot.isLoading;
+  const automationStatus = getAutomationStatus({
+    collectionStatus: data.system.source.status,
+    freshnessMinutes: data.system.source.freshnessMinutes,
+    reliability: reliability ?? null,
+    notificationsStatus: data.system.notifications.status,
+    modelStatus: data.model.status,
+  });
 
   return (
     <main className="seismic-safe-page min-h-screen bg-[#f5f7f8] text-slate-950 selection:bg-[#c8dded]">
@@ -82,6 +90,8 @@ export default function Home() {
 
         <CollectionReliability reliability={data.system.collectionReliability} />
 
+        <AutomationOverview status={automationStatus} />
+
         <section className="mt-6 rounded-3xl border border-[#b9d2e2] bg-[#edf7fc] p-5 sm:p-6"><div className="flex items-start gap-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#c8dded] text-slate-800"><AlertTriangle size={17} /></span><div><h2 className="font-black">ခန့်မှန်းချက် အခြေအနေ</h2><p className="mt-1 text-sm leading-6 text-slate-700">{modelStatusCopy(data.model.status)}</p></div></div>{hasProductionModel && <div className="mt-4 grid gap-3 sm:grid-cols-2"><SimpleProbability label="M4+ · နောက် 24 နာရီ" value={probability(summary.exampleProbability)} /><SimpleProbability label="M5+ · နောက် 7 ရက်" value={probability(summary.exampleSevenDayProbability)} /></div>}</section>
 
         <section className="mt-8"><div className="flex items-end justify-between gap-4"><div><p className="text-[10px] font-extrabold tracking-[0.18em] text-slate-500">ဒေသအလိုက်</p><h2 className="mt-1 text-2xl font-black tracking-tight">Japan မှာ ဘယ်နေရာတွေ လှုပ်ရှားနေလဲ</h2></div><p className="text-xs text-slate-500">လွန်ခဲ့သော 7 ရက်</p></div><div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{data.regions.map(region => <article key={region.region} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><div className="flex items-center justify-between gap-3"><h3 className="font-black">{region.region}</h3><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-600">{movementLabel(region.trend)}</span></div><div className="mt-4 flex items-end justify-between"><div><p className="text-2xl font-black">{activityLabel(region.events7d)}</p><p className="text-xs text-slate-500">7 ရက်အတွင်း events</p></div><p className="text-sm font-bold text-slate-700">{region.maxMagnitude7d === null ? "M —" : `အမြင့်ဆုံး M${region.maxMagnitude7d.toFixed(1)}`}</p></div></article>)}</div></section>
@@ -92,6 +102,17 @@ export default function Home() {
       </div>
     </main>
   );
+}
+
+function AutomationOverview({ status }: { status: AutomationStatus }) {
+  const items: Array<[string, string, AutomationStatus[keyof AutomationStatus]]> = [
+    ["Collection", "USGS schedule + Sheets", status.collection],
+    ["Refresh", "Mount / focus / reconnect", status.refresh],
+    ["Reliability", "Retry + telemetry", status.reliability],
+    ["Alerts", "Permission-bound delivery", status.alerts],
+    ["Model", "Quality-gated promotion", status.model],
+  ];
+  return <section aria-labelledby="automation-overview-title" className="mt-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-extrabold tracking-[0.16em] text-slate-500">AUTOMATION OVERVIEW</p><h2 id="automation-overview-title" className="mt-1 text-xl font-black">စနစ်အလိုအလျောက် လည်ပတ်မှု</h2></div><span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-extrabold text-slate-600">AUTO · SAFE</span></div><div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">{items.map(([label, detail, tone]) => <article key={label} className={`rounded-2xl border p-3 ${automationStatusToneClass(tone)}`}><p className="text-[10px] font-extrabold tracking-[0.12em] opacity-75">{label}</p><p className="mt-2 text-sm font-black">{automationStatusLabel(tone)}</p><p className="mt-1 text-[11px] leading-5 opacity-80">{detail}</p></article>)}</div><p className="mt-4 text-xs leading-5 text-slate-500">Collection, retry, telemetry နှင့် dashboard refresh များသည် source-backed status အတိုင်း အလိုအလျောက်လုပ်ဆောင်ပါသည်။ Background notification သည် user/device permission လိုအပ်ပြီး model probability သည် quality gates များမပြည့်မချင်း မထုတ်ပြပါ။</p></section>;
 }
 
 function SummaryCard({ label, value, caption }: { label: string; value: string; caption: string }) { return <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><p className="text-[10px] font-extrabold tracking-[0.16em] text-slate-500">{label}</p><p className="mt-2 text-2xl font-black tracking-tight">{value}</p><p className="mt-1 text-xs text-slate-500">{caption}</p></article>; }

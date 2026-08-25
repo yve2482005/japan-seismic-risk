@@ -146,3 +146,8 @@
 - [x] Add an accessible manual dismiss close button to in-app toast notifications.
 - [x] Add semantically distinct warning, error, and info toast colors with accessible icons.
 - [x] Optimize responsive navigation, spacing, touch targets, safe-area padding, and content layout across Android, iOS, laptop, and desktop viewports.
+- [x] Perform an overall safe automation upgrade that unifies automatic collection, retry/reconciliation, telemetry, refresh, reliability warnings, alert preferences, and cross-device status without fabricating data or bypassing user/device permissions.
+
+# Overall automation upgrade scope
+
+This upgrade may automate scheduled source collection, bounded retries, authenticated telemetry, dashboard refresh and reliability warnings. Background push delivery remains opt-in and permission-bound; local location remains session-only; model promotion remains quality-gated; official warnings and exact predictions remain out of scope.
