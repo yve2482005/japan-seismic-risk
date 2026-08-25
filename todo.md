@@ -144,3 +144,4 @@
 - [x] Add an accessible persistent warning banner and one-time toast when source-backed collection success rate is below 80%, while suppressing alerts when telemetry is unavailable.
 - [x] Add smooth reduced-motion-aware fade-in and fade-out transitions to in-app toast notifications.
 - [x] Add an accessible manual dismiss close button to in-app toast notifications.
+- [x] Add semantically distinct warning, error, and info toast colors with accessible icons.
