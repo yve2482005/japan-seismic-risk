@@ -2,9 +2,11 @@ import base64
 import json
 import os
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
-from collector.google_sheets_sink import append_unique_alert_records, append_unique_forecast_outcomes, service_account_info, upsert_raw_records
+from googleapiclient.errors import HttpError
+
+from collector.google_sheets_sink import append_rows_idempotently, append_unique_alert_records, append_unique_forecast_outcomes, execute_sheets_request, service_account_info, upsert_raw_records
 
 
 class GoogleSheetsSecretTests(unittest.TestCase):
@@ -35,6 +37,26 @@ class _Request:
 
     def execute(self):
         return self.value
+
+
+class _SequenceRequest:
+    def __init__(self, values):
+        self.values = list(values)
+        self.calls = 0
+
+    def execute(self):
+        self.calls += 1
+        value = self.values.pop(0)
+        if isinstance(value, Exception):
+            raise value
+        return value
+
+
+def _http_error(status: int) -> HttpError:
+    response = Mock()
+    response.status = status
+    response.reason = "test"
+    return HttpError(response, b"temporary test response")
 
 
 class _FakeValues:
@@ -100,3 +122,29 @@ class GoogleSheetsBatchTests(unittest.TestCase):
         with patch("collector.google_sheets_sink.sheet_service", return_value=service):
             result = append_unique_forecast_outcomes("sheet-id", records)
         self.assertEqual(result, {"created": 1, "duplicates_skipped": 1})
+
+
+class GoogleSheetsRetryTests(unittest.TestCase):
+    def test_retries_transient_503_with_bounded_exponential_backoff(self):
+        request = _SequenceRequest([_http_error(503), _http_error(503), {"ok": True}])
+        with patch("collector.google_sheets_sink.time.sleep") as sleep:
+            self.assertEqual(execute_sheets_request(request), {"ok": True})
+        self.assertEqual(request.calls, 3)
+        self.assertEqual([call.args[0] for call in sleep.call_args_list], [1.0, 2.0])
+
+    def test_does_not_retry_non_transient_errors(self):
+        request = _SequenceRequest([_http_error(400)])
+        with patch("collector.google_sheets_sink.time.sleep") as sleep:
+            with self.assertRaises(HttpError):
+                execute_sheets_request(request)
+        self.assertEqual(request.calls, 1)
+        sleep.assert_not_called()
+
+    def test_append_reconciles_after_transient_error_before_retrying(self):
+        service = _FakeService()
+        append_request = _SequenceRequest([_http_error(503)])
+        service.values_api.append = lambda **_kwargs: append_request
+        service.values_api.get = lambda **_kwargs: _Request({"values": [["event-1"]]})
+        with patch("collector.google_sheets_sink.time.sleep"):
+            append_rows_idempotently(service, "sheet-id", "USGS_LIVE_EARTHQUAKES", "USGS_LIVE_EARTHQUAKES!A:V", [["event-1"]])
+        self.assertEqual(append_request.calls, 1)

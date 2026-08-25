@@ -16,6 +16,7 @@ from typing import Any, Iterable
 
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 
 REQUIRED_TABS = ("RAW_EARTHQUAKES", "USGS_LIVE_EARTHQUAKES", "ALERTS", "FEATURES", "TRAINING_DATA", "PREDICTIONS", "FORECAST_OUTCOMES", "MODEL_METRICS", "SYSTEM_LOG")
 RAW_HEADERS = ("event_id", "source", "source_url", "origin_time_utc", "local_time_japan", "latitude", "longitude", "depth_km", "magnitude", "magnitude_type", "region", "prefecture", "nearest_city", "event_type", "collection_time", "data_quality", "duplicate_status", "training_eligible", "cross_source_duplicate_status", "raw_value", "normalized_value", "source_updated_epoch_ms")
@@ -32,6 +33,57 @@ TAB_HEADERS = {
 }
 SCOPES = ("https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive.file")
 RAW_APPEND_BATCH_SIZE = 400
+SHEETS_MAX_ATTEMPTS = 4
+SHEETS_RETRY_BASE_SECONDS = 1.0
+TRANSIENT_SHEETS_STATUS_CODES = frozenset((429, 500, 502, 503, 504))
+
+
+def _is_transient_sheets_error(error: HttpError) -> bool:
+    return getattr(error.resp, "status", None) in TRANSIENT_SHEETS_STATUS_CODES
+
+
+def execute_sheets_request(request: Any) -> Any:
+    """Execute an idempotent Sheets request with bounded exponential backoff.
+
+    This helper is intentionally restricted to idempotent reads and updates. Appends
+    use reconciliation below because a 503 response can be returned after the server
+    already committed an append.
+    """
+    for attempt in range(SHEETS_MAX_ATTEMPTS):
+        try:
+            return request.execute()
+        except HttpError as error:
+            if not _is_transient_sheets_error(error) or attempt == SHEETS_MAX_ATTEMPTS - 1:
+                raise
+            time.sleep(SHEETS_RETRY_BASE_SECONDS * (2 ** attempt))
+    raise AssertionError("unreachable")
+
+
+def append_rows_idempotently(service: Any, spreadsheet_id: str, tab: str, append_range: str, rows: list[list[Any]]) -> None:
+    """Append rows once even when a transient error makes the first outcome unknown."""
+    pending = list(rows)
+    for attempt in range(SHEETS_MAX_ATTEMPTS):
+        try:
+            service.spreadsheets().values().append(
+                spreadsheetId=spreadsheet_id,
+                range=append_range,
+                valueInputOption="RAW",
+                insertDataOption="INSERT_ROWS",
+                body={"values": pending},
+            ).execute()
+            return
+        except HttpError as error:
+            if not _is_transient_sheets_error(error) or attempt == SHEETS_MAX_ATTEMPTS - 1:
+                raise
+            current = execute_sheets_request(service.spreadsheets().values().get(
+                spreadsheetId=spreadsheet_id,
+                range=f"{tab}!A2:A",
+            )).get("values", [])
+            existing_ids = {str(row[0]) for row in current if row and row[0]}
+            pending = [row for row in pending if row and str(row[0]) not in existing_ids]
+            if not pending:
+                return
+            time.sleep(SHEETS_RETRY_BASE_SECONDS * (2 ** attempt))
 
 
 def service_account_info() -> dict[str, Any]:
@@ -84,13 +136,13 @@ def create_or_prepare_spreadsheet(title: str, spreadsheet_id: str | None = None,
         spreadsheet_id = service.spreadsheets().create(body={"properties": {"title": title}}).execute()["spreadsheetId"]
         if share_email:
             drive_service().permissions().create(fileId=spreadsheet_id, sendNotificationEmail=True, body={"type": "user", "role": "writer", "emailAddress": share_email}).execute()
-    metadata = service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute()
+    metadata = execute_sheets_request(service.spreadsheets().get(spreadsheetId=spreadsheet_id))
     existing = {sheet["properties"]["title"] for sheet in metadata["sheets"]}
     requests = [{"addSheet": {"properties": {"title": tab}}} for tab in REQUIRED_TABS if tab not in existing]
     if requests:
-        service.spreadsheets().batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": requests}).execute()
+        execute_sheets_request(service.spreadsheets().batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": requests}))
     for tab, headers in TAB_HEADERS.items():
-        service.spreadsheets().values().update(spreadsheetId=spreadsheet_id, range=f"{tab}!A1", valueInputOption="RAW", body={"values": [list(headers)]}).execute()
+        execute_sheets_request(service.spreadsheets().values().update(spreadsheetId=spreadsheet_id, range=f"{tab}!A1", valueInputOption="RAW", body={"values": [list(headers)]}))
     return spreadsheet_id
 
 
@@ -98,7 +150,7 @@ def upsert_raw_records(spreadsheet_id: str, records: Iterable[dict[str, Any]], t
     if tab not in {"RAW_EARTHQUAKES", "USGS_LIVE_EARTHQUAKES"}:
         raise ValueError(f"Unsupported raw-record tab: {tab}")
     service = sheet_service()
-    current = service.spreadsheets().values().get(spreadsheetId=spreadsheet_id, range=f"{tab}!A2:V").execute().get("values", [])
+    current = execute_sheets_request(service.spreadsheets().values().get(spreadsheetId=spreadsheet_id, range=f"{tab}!A2:V")).get("values", [])
     updated_index = RAW_HEADERS.index("source_updated_epoch_ms")
     index = {row[0]: (position + 2, int(float(row[updated_index])) if len(row) > updated_index and row[updated_index] else -1) for position, row in enumerate(current) if row}
     appended = updated = unchanged = 0
@@ -118,17 +170,17 @@ def upsert_raw_records(spreadsheet_id: str, records: Iterable[dict[str, Any]], t
             append_rows.append(values)
             appended += 1
     if update_data:
-        service.spreadsheets().values().batchUpdate(spreadsheetId=spreadsheet_id, body={"valueInputOption": "RAW", "data": update_data}).execute()
+        execute_sheets_request(service.spreadsheets().values().batchUpdate(spreadsheetId=spreadsheet_id, body={"valueInputOption": "RAW", "data": update_data}))
     for offset in range(0, len(append_rows), RAW_APPEND_BATCH_SIZE):
         batch = append_rows[offset:offset + RAW_APPEND_BATCH_SIZE]
-        service.spreadsheets().values().append(spreadsheetId=spreadsheet_id, range=f"{tab}!A:V", valueInputOption="RAW", insertDataOption="INSERT_ROWS", body={"values": batch}).execute()
+        append_rows_idempotently(service, spreadsheet_id, tab, f"{tab}!A:V", batch)
         if offset + RAW_APPEND_BATCH_SIZE < len(append_rows):
             time.sleep(1.05)
     return {"appended": appended, "updated": updated, "unchanged": unchanged}
 
 
 def read_tab_records(spreadsheet_id: str, tab: str) -> list[dict[str, str]]:
-    values = sheet_service().spreadsheets().values().get(spreadsheetId=spreadsheet_id, range=f"{tab}!A:Z").execute().get("values", [])
+    values = execute_sheets_request(sheet_service().spreadsheets().values().get(spreadsheetId=spreadsheet_id, range=f"{tab}!A:Z")).get("values", [])
     if not values:
         return []
     headers, rows = values[0], values[1:]
@@ -141,9 +193,9 @@ def replace_derived_tab(spreadsheet_id: str, tab: str, records: Iterable[dict[st
     headers = TAB_HEADERS[tab]
     rows = [[record.get(header, "") for header in headers] for record in records]
     service = sheet_service()
-    service.spreadsheets().values().clear(spreadsheetId=spreadsheet_id, range=f"{tab}!A2:Z").execute()
+    execute_sheets_request(service.spreadsheets().values().clear(spreadsheetId=spreadsheet_id, range=f"{tab}!A2:Z"))
     if rows:
-        service.spreadsheets().values().update(spreadsheetId=spreadsheet_id, range=f"{tab}!A2", valueInputOption="RAW", body={"values": rows}).execute()
+        execute_sheets_request(service.spreadsheets().values().update(spreadsheetId=spreadsheet_id, range=f"{tab}!A2", valueInputOption="RAW", body={"values": rows}))
     return len(rows)
 
 
@@ -153,7 +205,7 @@ def append_derived_records(spreadsheet_id: str, tab: str, records: Iterable[dict
     headers = TAB_HEADERS[tab]
     rows = [[record.get(header, "") for header in headers] for record in records]
     if rows:
-        sheet_service().spreadsheets().values().append(spreadsheetId=spreadsheet_id, range=f"{tab}!A:Z", valueInputOption="RAW", insertDataOption="INSERT_ROWS", body={"values": rows}).execute()
+        append_rows_idempotently(sheet_service(), spreadsheet_id, tab, f"{tab}!A:Z", rows)
     return len(rows)
 
 
@@ -161,7 +213,7 @@ def append_unique_alert_records(spreadsheet_id: str, records: Iterable[dict[str,
     """Append alert history once per deterministic alert ID without altering prior alert rows."""
     headers = TAB_HEADERS["ALERTS"]
     service = sheet_service()
-    current = service.spreadsheets().values().get(spreadsheetId=spreadsheet_id, range="ALERTS!A:Z").execute().get("values", [])
+    current = execute_sheets_request(service.spreadsheets().values().get(spreadsheetId=spreadsheet_id, range="ALERTS!A:Z")).get("values", [])
     existing_ids = {row[0] for row in current[1:] if row and row[0]}
     rows = []
     skipped = 0
@@ -174,7 +226,7 @@ def append_unique_alert_records(spreadsheet_id: str, records: Iterable[dict[str,
         rows.append([record.get(header, "") for header in headers])
     for offset in range(0, len(rows), RAW_APPEND_BATCH_SIZE):
         batch = rows[offset:offset + RAW_APPEND_BATCH_SIZE]
-        service.spreadsheets().values().append(spreadsheetId=spreadsheet_id, range="ALERTS!A:Q", valueInputOption="RAW", insertDataOption="INSERT_ROWS", body={"values": batch}).execute()
+        append_rows_idempotently(service, spreadsheet_id, "ALERTS", "ALERTS!A:Q", batch)
         if offset + RAW_APPEND_BATCH_SIZE < len(rows):
             time.sleep(1.05)
     return {"created": len(rows), "duplicates_skipped": skipped}
@@ -184,7 +236,7 @@ def append_unique_forecast_outcomes(spreadsheet_id: str, records: Iterable[dict[
     """Append each closed production forecast outcome once, keyed by deterministic outcome_id."""
     headers = TAB_HEADERS["FORECAST_OUTCOMES"]
     service = sheet_service()
-    current = service.spreadsheets().values().get(spreadsheetId=spreadsheet_id, range="FORECAST_OUTCOMES!A:Z").execute().get("values", [])
+    current = execute_sheets_request(service.spreadsheets().values().get(spreadsheetId=spreadsheet_id, range="FORECAST_OUTCOMES!A:Z")).get("values", [])
     existing_ids = {row[0] for row in current[1:] if row and row[0]}
     rows = []
     skipped = 0
@@ -197,7 +249,7 @@ def append_unique_forecast_outcomes(spreadsheet_id: str, records: Iterable[dict[
         rows.append([record.get(header, "") for header in headers])
     for offset in range(0, len(rows), RAW_APPEND_BATCH_SIZE):
         batch = rows[offset:offset + RAW_APPEND_BATCH_SIZE]
-        service.spreadsheets().values().append(spreadsheetId=spreadsheet_id, range="FORECAST_OUTCOMES!A:M", valueInputOption="RAW", insertDataOption="INSERT_ROWS", body={"values": batch}).execute()
+        append_rows_idempotently(service, spreadsheet_id, "FORECAST_OUTCOMES", "FORECAST_OUTCOMES!A:M", batch)
         if offset + RAW_APPEND_BATCH_SIZE < len(rows):
             time.sleep(1.05)
     return {"created": len(rows), "duplicates_skipped": skipped}

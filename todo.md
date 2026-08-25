@@ -139,3 +139,4 @@
 - [x] Audit and implement a scoped future-level upgrade that improves the public monitoring experience without weakening $0 operation, data provenance, alert safety, or scientific boundaries.
 - [x] Add a visible real-time refresh indicator while live-source telemetry data is being retrieved.
 - [x] Audit and implement a safe high-impact 100× upgrade that improves performance, resilience, usability, and operational clarity without weakening source provenance, $0 operation, or scientific safeguards.
+- [x] Add bounded idempotent exponential-backoff retries for transient Google Sheets service failures in the scheduled USGS collector, with regression coverage and no source or deduplication changes.
