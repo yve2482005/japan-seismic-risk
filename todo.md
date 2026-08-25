@@ -153,3 +153,9 @@
 This upgrade may automate scheduled source collection, bounded retries, authenticated telemetry, dashboard refresh and reliability warnings. Background push delivery remains opt-in and permission-bound; local location remains session-only; model promotion remains quality-gated; official warnings and exact predictions remain out of scope.
 - [x] Diagnose and fix Android HTTPS background-push subscription status not updating after notification permission is granted, without fabricating a push event or bypassing device controls.
 - [x] Improve UI/UX clarity, accessibility, responsive interaction, and trustworthy status communication across the monitoring experience without changing live-data safeguards.
+
+- [ ] Re-verify JMA official static historical archive URL, robots.txt status, published data-use terms, permitted automated access, and conservative request limits before downloading.
+- [ ] Import permitted JMA historical archive records into a source-separated backfill with archive period, provenance, attribution, validation status, and within-source deduplication.
+- [ ] Explicitly identify and handle cross-source USGS/JMA duplicate events without inflating the training dataset or altering the USGS live pipeline.
+- [ ] Run a research-only JMA–USGS hybrid experiment with chronological/time-aware splits, complete label/data-quality gates, and no production promotion unless independently justified.
+- [ ] Report JMA import counts, USGS counts, duplicates, date coverage, validation failures, quality-gate status, and research metrics only when genuinely calculable.

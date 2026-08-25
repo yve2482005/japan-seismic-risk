@@ -167,6 +167,50 @@ def backfill_jma_historical(spreadsheet_id: str) -> dict[str, Any]:
     return result
 
 
+def hybrid_research_summary(jma_records: list[dict[str, Any]], usgs_records: list[dict[str, Any]]) -> dict[str, Any]:
+    """Assess whether a source-aware JMA–USGS research experiment is identifiable.
+
+    This function never creates live predictions and never promotes a hybrid model.
+    It refuses pooled evaluation when the source timelines do not overlap, because
+    a model trained on one era and tested on another would not be a fair hybrid test.
+    """
+    def coverage(records: list[dict[str, Any]]) -> dict[str, Any]:
+        ordered = sorted(records, key=lambda row: parse_time(row["origin_time_utc"]))
+        return {
+            "records": len(ordered),
+            "first_origin_time_utc": ordered[0]["origin_time_utc"] if ordered else None,
+            "last_origin_time_utc": ordered[-1]["origin_time_utc"] if ordered else None,
+        }
+
+    jma_coverage = coverage(jma_records)
+    usgs_coverage = coverage(usgs_records)
+    if not jma_records or not usgs_records:
+        return {
+            "status": "deferred_missing_source_history",
+            "metrics_reported": False,
+            "probabilities_reported": False,
+            "jma": jma_coverage,
+            "usgs": usgs_coverage,
+            "cross_source_matches_retained": 0,
+        }
+    jma_start, jma_end = parse_time(jma_coverage["first_origin_time_utc"]), parse_time(jma_coverage["last_origin_time_utc"])
+    usgs_start, usgs_end = parse_time(usgs_coverage["first_origin_time_utc"]), parse_time(usgs_coverage["last_origin_time_utc"])
+    overlap_start, overlap_end = max(jma_start, usgs_start), min(jma_end, usgs_end)
+    overlap_days = max(0.0, (overlap_end - overlap_start).total_seconds() / 86400)
+    return {
+        "status": "deferred_no_temporal_overlap" if overlap_days <= 0 else "research_candidate_requires_harmonization",
+        "metrics_reported": False,
+        "probabilities_reported": False,
+        "jma": jma_coverage,
+        "usgs": usgs_coverage,
+        "overlap_days": round(overlap_days, 2),
+        "overlap_start_utc": overlap_start.isoformat() if overlap_days > 0 else None,
+        "overlap_end_utc": overlap_end.isoformat() if overlap_days > 0 else None,
+        "cross_source_matches_retained": sum(1 for row in jma_records if row.get("cross_source_duplicate_status") == "possible_usgs_match_retained_source_separated"),
+        "guard": "No pooled or production evaluation; source rows remain separate and no prediction rows are written.",
+    }
+
+
 def migrate_usgs_live_records(spreadsheet_id: str) -> dict[str, int]:
     """Copy prior USGS rows to the small dedicated live tab; JMA history remains untouched."""
     rows = read_tab_records(spreadsheet_id, "RAW_EARTHQUAKES")
@@ -422,7 +466,7 @@ def train_if_ready(spreadsheet_id: str, records: list[dict[str, Any]], dataset_v
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", choices=("collect", "train", "all", "jma-backfill", "jma-quality-check", "jma-train", "migrate-usgs-live"), default="all")
+    parser.add_argument("--mode", choices=("collect", "train", "all", "jma-backfill", "jma-quality-check", "jma-train", "hybrid-research", "migrate-usgs-live"), default="all")
     parser.add_argument("--spreadsheet-id", default=None)
     args = parser.parse_args()
     reset_retry_attempts()
@@ -449,6 +493,11 @@ def main() -> None:
         records = normalized_records(spreadsheet_id, JMA_SOURCE)
         output["derived"] = materialize_features(spreadsheet_id, records, "jma-historical-bulletin-v1")
         output["training"] = train_if_ready(spreadsheet_id, records, "jma-historical-bulletin-v1", allow_promotion=False)
+    if args.mode == "hybrid-research":
+        jma_records = normalized_records(spreadsheet_id, JMA_SOURCE)
+        usgs_records = normalized_records(spreadsheet_id, USGS_SOURCE, tab=USGS_LIVE_TAB)
+        output["hybrid_research"] = hybrid_research_summary(jma_records, usgs_records)
+        append_system_log(spreadsheet_id, "hybrid_research", "info", "JMA-USGS hybrid research assessment completed without production promotion or probability output", output["hybrid_research"])
     if args.mode == "migrate-usgs-live":
         output["usgs_live_migration"] = migrate_usgs_live_records(spreadsheet_id)
     output["sheets_retry_attempts"] = retry_attempts()

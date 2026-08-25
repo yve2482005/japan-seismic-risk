@@ -2,7 +2,7 @@ import json
 import unittest
 from unittest.mock import patch
 
-from collector.github_action_runner import USGS_LIVE_TAB, USGS_SOURCE, active_production_rows, alert_definition, closed_production_forecast_outcomes, collect, materialize_features, normalized_records, positive_label_count, production_prediction_rows, promote_rows, quality_gate, risk_level, select_production_candidate, source_aware_alert_records
+from collector.github_action_runner import USGS_LIVE_TAB, USGS_SOURCE, active_production_rows, alert_definition, closed_production_forecast_outcomes, collect, hybrid_research_summary, materialize_features, normalized_records, positive_label_count, production_prediction_rows, promote_rows, quality_gate, risk_level, select_production_candidate, source_aware_alert_records
 
 
 class GitHubActionRunnerTests(unittest.TestCase):
@@ -21,6 +21,15 @@ class GitHubActionRunnerTests(unittest.TestCase):
         passed, detail = quality_gate(records)
         self.assertFalse(passed)
         self.assertEqual(detail["records"], 1)
+
+    def test_hybrid_research_defers_without_metrics_when_source_histories_do_not_overlap(self):
+        jma = [{"event_id": "jma-1", "origin_time_utc": "2023-09-01T00:00:00Z", "latitude": 35, "longitude": 139, "magnitude": 4, "region": "Kanto"}, {"event_id": "jma-2", "origin_time_utc": "2023-12-31T00:00:00Z", "latitude": 35, "longitude": 139, "magnitude": 4, "region": "Kanto"}]
+        usgs = [{"event_id": "usgs-1", "origin_time_utc": "2026-07-01T00:00:00Z", "latitude": 35, "longitude": 139, "magnitude": 4, "region": "Kanto"}, {"event_id": "usgs-2", "origin_time_utc": "2026-08-01T00:00:00Z", "latitude": 35, "longitude": 139, "magnitude": 4, "region": "Kanto"}]
+        result = hybrid_research_summary(jma, usgs)
+        self.assertEqual(result["status"], "deferred_no_temporal_overlap")
+        self.assertFalse(result["metrics_reported"])
+        self.assertFalse(result["probabilities_reported"])
+        self.assertEqual(result["overlap_days"], 0.0)
 
     def test_fast_positive_label_count_matches_the_chronological_future_window_definition(self):
         records = [
