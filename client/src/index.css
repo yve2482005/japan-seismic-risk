@@ -67,6 +67,25 @@ button:focus-visible, [role="button"]:focus-visible { outline: 2px solid #111; o
 [data-sonner-toast][data-type="error"] { background: #fff0f1 !important; border-color: #f0a0a8 !important; color: #8b1d2c !important; }
 [data-sonner-toast][data-type="success"] { background: #eaf9f0 !important; border-color: #8bdbad !important; color: #0f5b34 !important; }
 [data-sonner-toast][data-type="info"] [data-icon], [data-sonner-toast][data-type="warning"] [data-icon], [data-sonner-toast][data-type="error"] [data-icon], [data-sonner-toast][data-type="success"] [data-icon] { color: currentColor; }
+
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+button, a, input, select, textarea { touch-action: manipulation; }
+button:active, [role="button"]:active, .seismic-app-nav a:active { transform: scale(.97); }
+
+.seismic-safe-page { padding-bottom: max(0px, env(safe-area-inset-bottom)); }
+
+@media (max-width: 639px) {
+  .seismic-app-header-inner { flex-direction: column; align-items: stretch; gap: .75rem; padding-top: max(1rem, env(safe-area-inset-top)); }
+  .seismic-app-nav { display: flex; gap: .5rem; width: calc(100% + 2.5rem); margin-inline: -1.25rem; padding-inline: 1.25rem; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .seismic-app-nav::-webkit-scrollbar { display: none; }
+  .seismic-app-nav > a, .seismic-app-nav > button { flex: 0 0 auto; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+  main > header > div { padding-top: max(1rem, env(safe-area-inset-top)); }
+  main > header a, main > header button { min-height: 44px; }
+}
+
+@media (min-width: 640px) {
+  .seismic-app-nav { display: flex; align-items: center; gap: .5rem; }
+}
 @media (max-width: 640px) { .accent-blue { right: -55px; top: 220px; width: 115px; height: 115px; } .accent-pink { top: 580px; opacity: .48; } }
 
 .seismic-visual-alert { position: fixed; inset: 0; z-index: 100; display: flex; align-items: flex-start; justify-content: center; padding: max(1.25rem, env(safe-area-inset-top)) 1rem 1rem; pointer-events: none; border: 10px solid rgba(220, 38, 38, .94); box-shadow: inset 0 0 0 5px rgba(255,255,255,.82), inset 0 0 58px rgba(220, 38, 38, .52); background: rgba(220, 38, 38, .12); color: #fff; font-size: .875rem; font-weight: 900; text-align: center; text-shadow: 0 1px 3px rgba(0,0,0,.7); animation: seismic-alert-flash 1.65s cubic-bezier(.23, 1, .32, 1) both; }
