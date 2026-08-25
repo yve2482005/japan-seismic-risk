@@ -143,3 +143,4 @@
 - [x] Add a truthful dashboard widget for scheduled collection success rate and retry activity, including an explicit unavailable state until source-backed telemetry exists.
 - [x] Add an accessible persistent warning banner and one-time toast when source-backed collection success rate is below 80%, while suppressing alerts when telemetry is unavailable.
 - [x] Add smooth reduced-motion-aware fade-in and fade-out transitions to in-app toast notifications.
+- [x] Add an accessible manual dismiss close button to in-app toast notifications.
