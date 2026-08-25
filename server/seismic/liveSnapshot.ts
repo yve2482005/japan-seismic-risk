@@ -1,4 +1,5 @@
 import { readRawEarthquakeRows, readSheetRows } from "../googleSheets";
+import { recentCollectionReliability } from "../collectionTelemetry";
 import { classifyRisk, JAPAN_REGIONS, type DetectionAlert, type JapanRegion, type RegionActivity, type SeismicEvent } from "@shared/seismic";
 
 const mapPositions: Record<JapanRegion, [number, number]> = {
@@ -91,7 +92,7 @@ function parseLogContext(value: string | undefined) {
 
 function finiteNumber(value: unknown) { return typeof value === "number" && Number.isFinite(value) ? value : null; }
 
-export function buildSystemHealth(snapshot: ReturnType<typeof buildLiveSnapshot>, systemRows: LiveRow[], alerts: DetectionAlert[], now = new Date()) {
+export function buildSystemHealth(snapshot: ReturnType<typeof buildLiveSnapshot>, systemRows: LiveRow[], alerts: DetectionAlert[], now = new Date(), collectionReliability: Awaited<ReturnType<typeof recentCollectionReliability>> = null) {
   const latestCollector = systemRows.filter(row => row.component === "collector").sort((left, right) => Date.parse(right.timestamp_utc ?? "") - Date.parse(left.timestamp_utc ?? ""))[0];
   const collectorContext = parseLogContext(latestCollector?.context_json);
   const latestCollection = snapshot.latestCollection ? new Date(snapshot.latestCollection) : null;
@@ -102,6 +103,7 @@ export function buildSystemHealth(snapshot: ReturnType<typeof buildLiveSnapshot>
     quality: { invalidRejected: finiteNumber(collectorContext.invalid_rejected), outsideEnvelope: finiteNumber(collectorContext.outside_envelope), newEventsConsidered: finiteNumber(collectorContext.new_events_considered_for_alerts) },
     alerts: { historyCount: alerts.length, latestDetectedAt: alerts[0]?.detectedAt ?? null, status: "in_app_history_only" as const },
     notifications: { status: "permission_required_background_sender_unconfigured" as const, detail: "Browser permission can be requested by the user; no server-side background push sender is configured." },
+    collectionReliability,
   };
 }
 
@@ -125,7 +127,7 @@ export function closedProductionForecastSummary(rows: LiveRow[], metricRows: Liv
 }
 
 export async function getLiveSnapshot() {
-  const [dataset, metricDataset, predictionDataset, alertDataset, systemLogDataset, forecastOutcomeDataset] = await Promise.all([readRawEarthquakeRows(), readSheetRows("MODEL_METRICS"), readSheetRows("PREDICTIONS"), readSheetRows("ALERTS"), readSheetRows("SYSTEM_LOG"), readSheetRows("FORECAST_OUTCOMES")]);
+  const [dataset, metricDataset, predictionDataset, alertDataset, systemLogDataset, forecastOutcomeDataset, collectionReliability] = await Promise.all([readRawEarthquakeRows(), readSheetRows("MODEL_METRICS"), readSheetRows("PREDICTIONS"), readSheetRows("ALERTS"), readSheetRows("SYSTEM_LOG"), readSheetRows("FORECAST_OUTCOMES"), recentCollectionReliability()]);
   const effectiveMetrics = Object.values(metricDataset.rows.reduce<Record<string, LiveRow>>((current, row) => {
     const existing = current[row.model_version];
     if (row.model_version && (!existing || Date.parse(row.trained_at ?? "") >= Date.parse(existing.trained_at ?? ""))) current[row.model_version] = row;
@@ -147,7 +149,7 @@ export async function getLiveSnapshot() {
     events: snapshot.events,
     regions: snapshot.regions,
     alerts,
-    system: buildSystemHealth(snapshot, systemLogDataset.rows, alerts),
+    system: buildSystemHealth(snapshot, systemLogDataset.rows, alerts, new Date(), collectionReliability),
     modelHistory: visibleUsgsModelHistory(effectiveMetrics),
     forecastOutcomes: closedProductionForecastSummary(forecastOutcomeDataset.rows, metricDataset.rows),
   };

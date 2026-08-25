@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 
 from googleapiclient.errors import HttpError
 
-from collector.google_sheets_sink import append_rows_idempotently, append_unique_alert_records, append_unique_forecast_outcomes, execute_sheets_request, service_account_info, upsert_raw_records
+from collector.google_sheets_sink import append_rows_idempotently, append_unique_alert_records, append_unique_forecast_outcomes, execute_sheets_request, reset_retry_attempts, retry_attempts, service_account_info, upsert_raw_records
 
 
 class GoogleSheetsSecretTests(unittest.TestCase):
@@ -126,11 +126,13 @@ class GoogleSheetsBatchTests(unittest.TestCase):
 
 class GoogleSheetsRetryTests(unittest.TestCase):
     def test_retries_transient_503_with_bounded_exponential_backoff(self):
+        reset_retry_attempts()
         request = _SequenceRequest([_http_error(503), _http_error(503), {"ok": True}])
         with patch("collector.google_sheets_sink.time.sleep") as sleep:
             self.assertEqual(execute_sheets_request(request), {"ok": True})
         self.assertEqual(request.calls, 3)
         self.assertEqual([call.args[0] for call in sleep.call_args_list], [1.0, 2.0])
+        self.assertEqual(retry_attempts(), 2)
 
     def test_does_not_retry_non_transient_errors(self):
         request = _SequenceRequest([_http_error(400)])

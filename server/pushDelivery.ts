@@ -8,13 +8,13 @@ const REPOSITORY = "yve2482005/japan-seismic-risk";
 const WORKFLOW_REF = `${REPOSITORY}/.github/workflows/live-usgs-collection.yml@refs/heads/main`;
 const githubJwks = createRemoteJWKSet(new URL("https://token.actions.githubusercontent.com/.well-known/jwks"));
 
-export function trustedWorkflowClaims(claims: JWTPayload) {
-  return claims.iss === ISSUER && claims.aud === AUDIENCE && claims.repository === REPOSITORY && claims.workflow_ref === WORKFLOW_REF;
+export function trustedWorkflowClaims(claims: JWTPayload, audience = AUDIENCE) {
+  return claims.iss === ISSUER && claims.aud === audience && claims.repository === REPOSITORY && claims.workflow_ref === WORKFLOW_REF;
 }
 
-export async function verifyWorkflowToken(token: string) {
-  const result = await jwtVerify(token, githubJwks, { issuer: ISSUER, audience: AUDIENCE });
-  if (!trustedWorkflowClaims(result.payload)) throw new Error("Untrusted workflow identity.");
+export async function verifyWorkflowToken(token: string, audience = AUDIENCE) {
+  const result = await jwtVerify(token, githubJwks, { issuer: ISSUER, audience });
+  if (!trustedWorkflowClaims(result.payload, audience)) throw new Error("Untrusted workflow identity.");
   return result.payload;
 }
 

@@ -47,6 +47,13 @@ describe("live Sheets snapshot", () => {
     expect(health.quality).toMatchObject({ invalidRejected: 2, outsideEnvelope: 100 });
   });
 
+  it("keeps collection reliability unavailable until authenticated workflow telemetry exists", () => {
+    const snapshot = buildLiveSnapshot([]);
+    expect(buildSystemHealth(snapshot, [], []).collectionReliability).toBeNull();
+    const reliability = { windowRuns: 3, successes: 2, failures: 1, successRatePercent: 66.7, retryAttempts: 2, latestStatus: "failure" as const, latestReportedAt: "2026-08-25T00:00:00.000Z" };
+    expect(buildSystemHealth(snapshot, [], [], new Date(), reliability).collectionReliability).toMatchObject({ successRatePercent: 66.7, retryAttempts: 2, latestStatus: "failure" });
+  });
+
   it("keeps JMA model rows out of the USGS forecast history and retains only parseable held-out metrics", () => {
     const rows = [
       { model_version: "jma-only", dataset_version: "jma-historical-bulletin-v1", trained_at: "2026-08-24T00:00:00Z", metrics_json: "{}" },

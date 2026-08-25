@@ -9,6 +9,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { deliverPendingPushAlerts, verifyWorkflowToken } from "../pushDelivery";
+import { recordCollectionTelemetry } from "../collectionTelemetry";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -45,6 +46,22 @@ async function startServer() {
       return res.json(await deliverPendingPushAlerts());
     } catch (error) {
       const message = error instanceof Error ? error.message : "Push delivery failed.";
+      return res.status(message === "Untrusted workflow identity." ? 403 : 500).json({ error: message });
+    }
+  });
+  app.post("/api/internal/collection-telemetry", async (req, res) => {
+    const token = req.header("authorization")?.replace(/^Bearer\s+/i, "");
+    if (!token) return res.status(401).json({ error: "Missing workflow token." });
+    const runId = typeof req.body?.runId === "string" ? req.body.runId : "";
+    const status = req.body?.status === "success" || req.body?.status === "failure" ? req.body.status : null;
+    const retryAttempts = Number(req.body?.retryAttempts);
+    if (!/^\d{1,32}$/.test(runId) || !status || !Number.isInteger(retryAttempts) || retryAttempts < 0 || retryAttempts > 100) return res.status(400).json({ error: "Invalid collection telemetry payload." });
+    try {
+      await verifyWorkflowToken(token, "japan-seismic-telemetry");
+      await recordCollectionTelemetry({ runId, status, retryAttempts });
+      return res.json({ ok: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Collection telemetry failed.";
       return res.status(message === "Untrusted workflow identity." ? 403 : 500).json({ error: message });
     }
   });

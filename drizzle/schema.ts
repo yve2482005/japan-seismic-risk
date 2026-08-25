@@ -118,6 +118,15 @@ export const systemLogs = mysqlTable("systemLogs", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
+/** Immutable GitHub Actions collection outcomes, authenticated by the workflow OIDC identity. */
+export const collectionTelemetry = mysqlTable("collectionTelemetry", {
+  id: int("id").autoincrement().primaryKey(),
+  workflowRunId: varchar("workflowRunId", { length: 32 }).notNull().unique(),
+  status: mysqlEnum("status", ["success", "failure"]).notNull(),
+  retryAttempts: int("retryAttempts").default(0).notNull(),
+  reportedAt: timestamp("reportedAt").defaultNow().notNull(),
+});
+
 /** Private browser subscription endpoints. These are never returned by public APIs or written to Sheets. */
 export const pushSubscriptions = mysqlTable("pushSubscriptions", {
   id: int("id").autoincrement().primaryKey(),

@@ -29,12 +29,35 @@ jobs:
           cache-dependency-path: collector/requirements.txt
       - name: Install collector dependencies
         run: python -m pip install --disable-pip-version-check -r collector/requirements.txt
-      - name: Collect permitted USGS public CSV and update live dataset
+      - id: collect
+        name: Collect permitted USGS public CSV and update live dataset
+        continue-on-error: true
+        env:
+          COLLECTOR_TELEMETRY_PATH: ${{ runner.temp }}/collector-telemetry.json
         run: python collector/github_action_runner.py --mode collect
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: Report authenticated collection reliability telemetry
+        if: always()
+        continue-on-error: true
+        env:
+          COLLECTION_TELEMETRY_URL: https://japanseismic-269jnxjv.manus.space/api/internal/collection-telemetry
+          COLLECTION_OUTCOME: ${{ steps.collect.outcome }}
+          COLLECTOR_TELEMETRY_PATH: ${{ runner.temp }}/collector-telemetry.json
+        run: |
+          retry_attempts=0
+          if [ -f "$COLLECTOR_TELEMETRY_PATH" ]; then
+            retry_attempts="$(node -e 'const fs=require("fs"); const value=JSON.parse(fs.readFileSync(process.env.COLLECTOR_TELEMETRY_PATH,"utf8")); process.stdout.write(String(Number.isInteger(value.sheets_retry_attempts) ? value.sheets_retry_attempts : 0));')"
+          fi
+          token_json="$(curl --fail-with-body -sS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=japan-seismic-telemetry")"
+          token="$(node scripts/extract-oidc-token.mjs "$token_json")"
+          curl --fail-with-body -sS -X POST "$COLLECTION_TELEMETRY_URL" -H "Authorization: Bearer $token" -H "Content-Type: application/json" -d "{\"runId\":\"${GITHUB_RUN_ID}\",\"status\":\"${COLLECTION_OUTCOME}\",\"retryAttempts\":${retry_attempts}}"
+      - name: Preserve collection failure after telemetry reporting
+        if: steps.collect.outcome == 'failure'
+        run: exit 1
       - name: Deliver deduplicated opt-in browser push notifications
+        if: steps.collect.outcome == 'success'
         env:
           PUSH_DELIVERY_URL: https://japanseismic-269jnxjv.manus.space/api/internal/push-delivery
         run: |

@@ -36,6 +36,16 @@ RAW_APPEND_BATCH_SIZE = 400
 SHEETS_MAX_ATTEMPTS = 4
 SHEETS_RETRY_BASE_SECONDS = 1.0
 TRANSIENT_SHEETS_STATUS_CODES = frozenset((429, 500, 502, 503, 504))
+_retry_attempts = 0
+
+
+def reset_retry_attempts() -> None:
+    global _retry_attempts
+    _retry_attempts = 0
+
+
+def retry_attempts() -> int:
+    return _retry_attempts
 
 
 def _is_transient_sheets_error(error: HttpError) -> bool:
@@ -55,6 +65,8 @@ def execute_sheets_request(request: Any) -> Any:
         except HttpError as error:
             if not _is_transient_sheets_error(error) or attempt == SHEETS_MAX_ATTEMPTS - 1:
                 raise
+            global _retry_attempts
+            _retry_attempts += 1
             time.sleep(SHEETS_RETRY_BASE_SECONDS * (2 ** attempt))
     raise AssertionError("unreachable")
 
@@ -75,6 +87,8 @@ def append_rows_idempotently(service: Any, spreadsheet_id: str, tab: str, append
         except HttpError as error:
             if not _is_transient_sheets_error(error) or attempt == SHEETS_MAX_ATTEMPTS - 1:
                 raise
+            global _retry_attempts
+            _retry_attempts += 1
             current = execute_sheets_request(service.spreadsheets().values().get(
                 spreadsheetId=spreadsheet_id,
                 range=f"{tab}!A2:A",

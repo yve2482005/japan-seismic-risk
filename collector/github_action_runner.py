@@ -19,12 +19,12 @@ from typing import Any
 import numpy as np
 
 try:
-    from .google_sheets_sink import RAW_HEADERS, append_derived_records, append_system_log, append_unique_alert_records, append_unique_forecast_outcomes, create_or_prepare_spreadsheet, read_tab_records, replace_derived_tab, upsert_raw_records
+    from .google_sheets_sink import RAW_HEADERS, append_derived_records, append_system_log, append_unique_alert_records, append_unique_forecast_outcomes, create_or_prepare_spreadsheet, read_tab_records, replace_derived_tab, retry_attempts, reset_retry_attempts, upsert_raw_records
     from .jma_historical_pipeline import JMA_BACKFILL_MONTHS, JMA_SOURCE, download_archive, parse_archive
     from .live_usgs_pipeline import USGS_CSV_URL, download_csv, normalize_usgs_row
     from .train_models import FEATURE_NAMES, STANDARD_TARGETS, build_dataset, parse_time, production_model, regional_feature_vector, train
 except ImportError:
-    from google_sheets_sink import RAW_HEADERS, append_derived_records, append_system_log, append_unique_alert_records, append_unique_forecast_outcomes, create_or_prepare_spreadsheet, read_tab_records, replace_derived_tab, upsert_raw_records
+    from google_sheets_sink import RAW_HEADERS, append_derived_records, append_system_log, append_unique_alert_records, append_unique_forecast_outcomes, create_or_prepare_spreadsheet, read_tab_records, replace_derived_tab, retry_attempts, reset_retry_attempts, upsert_raw_records
     from jma_historical_pipeline import JMA_BACKFILL_MONTHS, JMA_SOURCE, download_archive, parse_archive
     from live_usgs_pipeline import USGS_CSV_URL, download_csv, normalize_usgs_row
     from train_models import FEATURE_NAMES, STANDARD_TARGETS, build_dataset, parse_time, production_model, regional_feature_vector, train
@@ -425,6 +425,7 @@ def main() -> None:
     parser.add_argument("--mode", choices=("collect", "train", "all", "jma-backfill", "jma-quality-check", "jma-train", "migrate-usgs-live"), default="all")
     parser.add_argument("--spreadsheet-id", default=None)
     args = parser.parse_args()
+    reset_retry_attempts()
     spreadsheet_id = args.spreadsheet_id or require_environment("GOOGLE_SHEETS_SPREADSHEET_ID")
     create_or_prepare_spreadsheet("Japan Seismic Monitor — Live Dataset", spreadsheet_id)
     output: dict[str, Any] = {"mode": args.mode, "spreadsheet_id": spreadsheet_id}
@@ -450,8 +451,12 @@ def main() -> None:
         output["training"] = train_if_ready(spreadsheet_id, records, "jma-historical-bulletin-v1", allow_promotion=False)
     if args.mode == "migrate-usgs-live":
         output["usgs_live_migration"] = migrate_usgs_live_records(spreadsheet_id)
+    output["sheets_retry_attempts"] = retry_attempts()
     print(json.dumps(output, ensure_ascii=False))
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    finally:
+        Path(os.environ.get("COLLECTOR_TELEMETRY_PATH", "/tmp/collector_telemetry.json")).write_text(json.dumps({"sheets_retry_attempts": retry_attempts()}), encoding="utf-8")
